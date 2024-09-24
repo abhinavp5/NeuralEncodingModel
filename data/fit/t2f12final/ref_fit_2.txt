@@ -1,0 +1,17 @@
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 0
+    # data points      = 50
+    # variables        = 0
+    chi-square         = 0.00552126
+    reduced chi-square = 1.1043e-04
+    Akaike info crit   = -455.558631
+    Bayesian info crit = -455.558631
+##  Warning: uncertainties could not be estimated:
+[[Variables]]
+    tau1:  8 (fixed)
+    tau2:  200 (fixed)
+    tau3:  inf (fixed)
+    k1:    0.74 (fixed)
+    k2:    0.2916 (fixed)
+    k3:    0.0684 (fixed)

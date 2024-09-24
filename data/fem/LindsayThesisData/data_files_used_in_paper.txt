@@ -1,0 +1,7 @@
+Time and stress data used in the paper
+
+Displacement control:
+disp2, disp3
+
+Force control:
+disp4, disp6
