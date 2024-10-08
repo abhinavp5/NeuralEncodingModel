@@ -21,7 +21,7 @@ from collections import defaultdict, OrderedDict
 from itertools import combinations
 from scipy.interpolate import interp1d
 from lmfit import minimize, fit_report, Parameters
-from stress_to_spike import (stress_to_fr_inst, spike_time_to_fr_roll,spike_time_to_fr_inst)
+from stress_to_spike import (stress_to_fr_inst, spike_time_to_fr_roll,spike_time_to_fr_inst, spike_time_to_trace)
 from model_constants import (MC_GROUPS, FS, ANIMAL_LIST, STIM_NUM, REF_ANIMAL, REF_STIM_LIST, WINDOW, REF_DISPL,
                              COLOR_LIST, CKO_ANIMAL_LIST, k_brush, tau_brush, DURATION)
 from gen_function import get_interp_stress, stress_to_current
@@ -154,6 +154,8 @@ def get_mod_spike(lmpars, groups, time, stress):
     params = lmpars_to_params(lmpars)
     mod_spike_time, mod_fr_inst = stress_to_fr_inst(time, stress,
                                                     groups, **params)
+    print("MOD_SPIKE_TIME:",mod_spike_time)
+    print("MOD_SPIKE_TIME:", mod_fr_inst)
     return (mod_spike_time, mod_fr_inst)
 
 def lmpars_to_params(lmpars):
@@ -213,16 +215,15 @@ def get_data_dicts(stim, animal=None, rec_dict=None):
         'rec_fr_inst': rec_fr_inst,
         'rec_fr_roll': rec_fr_roll}
     # Read model data
-    #time, stress = get_interp_stress(static_displ)
+    #time, stress = get_interp_stress(static_displ)'
+    # data = pd.read_csv("data/random_file.csv")
     # data = pd.read_csv('data/updated_dense_interpolated_stress_trace_RA.csv') #merats original stress traces
-    # data = pd.read_csv('data/vonfreystresstraces/3.61_out.csv') # Vonfrey Fillament w/ 0.4g
-    # data = pd.read_csv('data/vonfreystresstraces/4.08_out.csv') # Vonfrey Fillament w/ 1.0g
-    # data = pd.read_csv('data/vonfreystresstraces/4.17_out.csv') # Vonfrey Fillament w/ 1.4g
-    # data = pd.read_csv('data/vonfreystresstraces/4.31_out.csv') # Vonfrey Fillament w/ 2.0g
+    # data = pd.read_csv('data/vf_unscaled/3.61_out.csv') # Vonfrey Fillament w/ 0.4g
+    # data = pd.read_csv('data/vf_unscaled/4.08_out.csv') # Vonfrey Fillament w/ 1pyt .0g
+    # data = pd.read_csv('data/vf_unscaled/4.17_out.csv') # Vonfrey Fillament w/ 1.4g
+    # data = pd.read_csv('data/vf_unscaled/4.31_out.csv') # Vonfrey Fillament w/ 2.0g
     data = pd.read_csv('data/vonfreystresstraces/4.56_out.csv') # Vonfrey Fillament w/ 4.0g
 
-    #data
-    #
     time = data['Time (ms)'].values
     stress = 0.01 * data[data.columns[1]].values
 
@@ -242,11 +243,11 @@ def get_data_dicts(stim, animal=None, rec_dict=None):
         'rec_data_dict': rec_data_dict,
         'mod_data_dict': mod_data_dict,
         'fit_data_dict': fit_data_dict}
+    
     return data_dicts
 
 def fit_single_rec(lmpars, fit_data_dict):
     #minimizing the function get_single_residual
-    print()
     result = minimize(get_single_residual,
                       lmpars, kws=fit_data_dict, epsfcn=1e-4)
     return result
@@ -257,12 +258,13 @@ def fit_single_rec_mp(args):
 def plot_single_fit(lmpars_fit, groups, time, stress,
                     rec_spike_time, plot_kws={}, roll=True,
                     plot_rec=False, plot_mod=True,
-                    fig=None, axs=None, save_data=False, fname=None,
+                    fig=None, axs=None, save_data=True, fname=None,
                     **kwargs):
     if roll:
         rec_fr = kwargs['rec_fr_roll']
     else:
         rec_fr = kwargs['rec_fr_inst']
+    
     if fig is None and axs is None:
         fig, axs = plt.subplots()
         axs0 = axs
@@ -273,29 +275,36 @@ def plot_single_fit(lmpars_fit, groups, time, stress,
     else:
         axs0 = axs
         axs1 = axs
+    
+    # Plot modeled data (spike time and firing rate)
     if plot_mod:
-        mod_spike_time, mod_fr_inst = get_mod_spike(lmpars_fit, groups,
-                                                    time, stress)
-        axs0.plot(mod_spike_time, mod_fr_inst * 1e3, '-', **plot_kws)
+        mod_spike_time, mod_fr_inst = get_mod_spike(lmpars_fit, groups, time, stress)
+        axs0.plot(mod_spike_time, mod_fr_inst * 1e3, '-', **plot_kws, label="Modeled Firing Rate")
         axs0.set_xlim(0, 5000)
         axs0.set_xlabel('Time (msec)')
         axs0.set_ylabel('Instantaneous firing (Hz)')
+        
         if save_data:
-            np.savetxt('generated_plots/%s_mod_spike_time.csv' % fname,
-                       mod_spike_time, delimiter=',')
-            np.savetxt('generated_plots/%s_mod_fr_inst.csv' % fname,
-                       mod_fr_inst * 1e3, delimiter=',')
+            np.savetxt('generated_plots/%s_mod_spike_time.csv' % fname, mod_spike_time, delimiter=',')
+            np.savetxt('generated_plots/%s_mod_fr_inst.csv' % fname, mod_fr_inst * 1e3, delimiter=',')
+    
+    # Plot recorded data (spike time and firing rate)
     if plot_rec:
-        axs1.plot(rec_spike_time, rec_fr * 1e3, '.', **plot_kws)
+        axs1.plot(rec_spike_time, rec_fr * 1e3, '.', **plot_kws, label="Recorded Firing Rate")
         axs1.set_xlim(0, 5000)
         axs1.set_xlabel('Time (msec)')
         axs1.set_ylabel('Instantaneous firing (Hz)')
+        
         if save_data:
-            np.savetxt('generated_plots/%s_rec_spike_time.csv' % fname,
-                       rec_spike_time, delimiter=',')
-            np.savetxt('generated_plots/%s_rec_fr_inst.csv' % fname,
-                       rec_fr * 1e3, delimiter=',')
+            np.savetxt('generated_plots/%s_rec_spike_time.csv' % fname, rec_spike_time, delimiter=',')
+            np.savetxt('generated_plots/%s_rec_fr_inst.csv' % fname, rec_fr * 1e3, delimiter=',')
+    
+    # New: Plot stress vs time for reference
+    axs0.plot(time, stress, '--', color='gray', label="Stress vs Time")
+    
+    axs0.legend()
     fig.tight_layout()
+    
     return fig, axs
 
 ###returns precise timestamp up to seconds mark in the format of a string
@@ -315,6 +324,7 @@ def get_mean_lmpar(lmpar_list):
     for key, value in all_param_dict.items():
         mean_lmpar[key].set(value=np.mean(value))
     return mean_lmpar
+
 
 class FitApproach():
     """
@@ -358,7 +368,6 @@ class FitApproach():
         for animal in ANIMAL_LIST:
             self.data_dicts_dicts[animal] = {}
             for stim in range(STIM_NUM):
-                #print(STIM_NUM)
                 self.data_dicts_dicts[animal][stim] = self.get_data_dicts(
                     animal, stim)
 
@@ -508,16 +517,17 @@ class Stimulus:
 
             fine_time = fitApproach.data_dicts_dicts[afferent.afferent_type][stim]['mod_data_dict']['time']
             fine_stress = fitApproach.data_dicts_dicts[afferent.afferent_type][stim]['mod_data_dict']['stress']
-            #print("Fine Stress Max: ", np.max(fine_stress))
+            # print("Fine Stress Max: ", fine_stress)
             decayed_stress = calculate_stress_at_position(fine_stress, stimulus_diameter = self.diameter, rf_area=afferent.rf_size, xk=afferent.x_pos, yk=afferent.y_pos,
                                                         x_stimulus=self.x_stim, y_stimulus=self.y_stim, stimulus_type = self.type)
-            #print("Decayed Stress Max: ", np.max(decayed_stress))
+            # print("Decayed Stress Max: ", np.max(decayed_stress))
             mod_spike_time, mod_fr_inst = stress_to_fr_inst(
 
                 fine_time,  # fitApproach.data_dicts_dicts[animal][stim]['mod_data_dict']['time'],
                 decayed_stress,  # fitApproach.data_dicts_dicts[animal][stim]['mod_data_dict']['stress'],
                 fitApproach.data_dicts_dicts[afferent.afferent_type][stim]['mod_data_dict']['groups'],
                 **params_dict)
+            print("SPIKE TRACE BASED ON TIME", spike_time_to_trace(mod_spike_time))
 
             # Lindsay's version:
             # mod_spike_time, mod_fr_inst = get_mod_spike(lmpars_cko,
@@ -645,10 +655,13 @@ class SimulationConfig:
         self.y_stimulus = y_stimulus
         self.stress = stress
         
-
     def generate_afferent_position(self):
         ###should be same as afferenet_positions_with_sizes####
         return generate_afferent_positions_with_sizes(self.tongue_size,self.density_ratio,self.n_afferents,self.rf_sizes)
+    
+    def set_stress(self, stress):
+        self.stress = stress
+    
        
 class Simulation:
     def __init__(self, config : SimulationConfig):
@@ -665,6 +678,20 @@ class Simulation:
             for future in concurrent.futures.as_completed(futures):
                 dia = futures[future]
                 self.results_by_diameter[dia].append(future.result())##result is output of self.simulate_afferent_responses
+
+            # print(self.results_by_diameter[dia])
+            mean_firing_frequency = [afferent["mean_firing_frequency"] for afferent in self.results_by_diameter[dia]]
+            peak_firing_frequency = [afferent["peak_firing_frequency"] for afferent in self.results_by_diameter[dia]]
+            first_spike_time = [afferent["first_spike_time"] for afferent in self.results_by_diameter[dia]]
+
+
+            activated = [d for d in self.results_by_diameter[dia] if d.get("activated", True) ==True]
+            
+
+                                 
+            stresses = [afferent['stress'] for afferent in self.results_by_diameter[dia]]
+            return stresses[-1], mean_firing_frequency, peak_firing_frequency, first_spike_time
+        
 
     def simulate_afferent_response(self,afferent, stimulus):
         return stimulus.simulate_response(afferent)
@@ -691,11 +718,11 @@ class Simulation:
                     activated_afferents_per_position[position_key] = {'SA': 0, 'RA': 0}
                 activated_afferents_per_position[position_key][afferent_type] += activated
 
-            print(f"Results for Diameter {dia} mm:")
-            for position, spikes_info in total_spikes_per_position.items():
-                print(f"{position}: SA Spikes = {spikes_info.get('SA', 0)}, RA Spikes = {spikes_info.get('RA', 0)}")
-            for position, activation_info in activated_afferents_per_position.items():
-                print(f"{position}: SA Activated = {activation_info['SA']}, RA Activated = {activation_info['RA']}")
+            # print(f"Results for Diameter {dia} mm:")
+            # for position, spikes_info in total_spikes_per_position.items():
+            #     print(f"{position}: SA Spikes = {spikes_info.get('SA', 0)}, RA Spikes = {spikes_info.get('RA', 0)}")
+            # for position, activation_info in activated_afferents_per_position.items():
+            #     print(f"{position}: SA Activated = {activation_info['SA']}, RA Activated = {activation_info['RA']}")
             return total_spikes_per_position,activated_afferents_per_position
     def aggregate_results(self,config: SimulationConfig):
         # Aggregate results for each position
@@ -731,14 +758,19 @@ class Simulation:
                     'SA_first_spike_time': data['SA']['first_spike_time'],
                     'RA_first_spike_time': data['RA']['first_spike_time']
                 })
+    
         with open(f'generated_csv_files/{config.stimulus_type}_stim_{config.stimulus_diameter}mm_{config.stress}kPa_aggregated_simulation_results.csv', 'w', newline='') as csvfile:
             fieldnames = ['position', 'SA_spikes', 'RA_spikes', 'SA_activated', 'RA_activated', 'SA_mean_firing_frequency',
                     'RA_mean_firing_frequency', 'SA_peak_firing_frequency', 'RA_peak_firing_frequency',
                     'SA_first_spike_time', 'RA_first_spike_time']
+
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             for row in aggregated_results:
                 writer.writerow(row)
+        return aggregated_results
+         
+
 
     def plot(self, config: SimulationConfig):
         # Define colors for the afferent types
@@ -752,6 +784,10 @@ class Simulation:
             )
 
         # Loop through each afferent and plot its position
+        
+        x_positions = []
+        y_positions = []
+        calculated_alphas = []
         for afferent in self.afferents:
             # Calculate the stress level for each afferent based on its position and the nearest stimulus
             alpha = max(
@@ -769,12 +805,38 @@ class Simulation:
             )
 
             # Clip alpha between 0 and 1 to represent opacity
+            #adding the main values to lists to writ eto csv
+            x_positions.append(afferent.x_pos)
+            y_positions.append(afferent.y_pos)
+            calculated_alphas.append(alpha)
+            if alpha>0:
+                print(f"STRESS at X {afferent.x_pos} and Y {afferent.y_pos} is {alpha}")
             alpha = max(0, min(alpha, 1))
             
             # Set face color with RGBA for transparency based on stress
             facecolor_rgba = matplotlib.colors.to_rgba(colors[afferent.afferent_type], alpha)
             plt.scatter(afferent.x_pos, afferent.y_pos, facecolor=facecolor_rgba, edgecolor=colors[afferent.afferent_type],
                         s=np.pi * (afferent.rf_size) ** 2, label=afferent.afferent_type)
+            
+            
+        
+
+        # alphas_and_positions = set()
+
+        # alphas_and_positions.add({
+        #     ['x_pos']: tuple(x_positions),
+        #     ['y_pos'] :tuple(y_positions),
+        #     ["stress values"] : tuple(calculated_alphas)
+        # })
+        # with open(f'generated_csv_files/calculated_alpha_values.csv', 'w', newline='') as csvfile:
+        #     headernames = ['x_positions', 'y_positions', 'alphas']
+
+        #     writer = csv.DictWriter(csvfile, fieldnames=headernames)
+        #     writer.writeheader()
+        #     for row in alphas_and_positions:
+        #         writer.writerow(row)
+
+
 
         # Set plot limits based on tongue size
         plt.xlim(0, config.tongue_size[0])
@@ -862,16 +924,21 @@ def main():
     # Initialize the Simulation class with the config
     simulation = Simulation(config)
 
-    # Run the simulation
-    simulation.run()
+    # Run the simulation returns the stress for the respective dat we're using
+    calculated_stress, mean_firing_frequency, peak_firing_frequency, first_spike_time = simulation.run()
 
-    # Post-process results
+
+    print("THE CALCULATED STRESS IS:", calculated_stress)
+    #setting the stress of config to the calculated stress
+    # config.set_stress(calculated_stress)
+
+    # # Post-process results
     simulation.post_process()
 
     #aggregates & saves reusults
     aggregated_data = simulation.aggregate_results(config)
 
-    ##plotting
+    #plotting
     simulation.plot(config)
 
     #printing runtime
