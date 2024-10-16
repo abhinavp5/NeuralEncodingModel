@@ -154,8 +154,6 @@ def get_mod_spike(lmpars, groups, time, stress):
     params = lmpars_to_params(lmpars)
     mod_spike_time, mod_fr_inst = stress_to_fr_inst(time, stress,
                                                     groups, **params)
-    print("MOD_SPIKE_TIME:",mod_spike_time)
-    print("MOD_SPIKE_TIME:", mod_fr_inst)
     return (mod_spike_time, mod_fr_inst)
 
 def lmpars_to_params(lmpars):
@@ -218,14 +216,14 @@ def get_data_dicts(stim, animal=None, rec_dict=None):
     #time, stress = get_interp_stress(static_displ)'
     # data = pd.read_csv("data/random_file.csv")
     # data = pd.read_csv('data/updated_dense_interpolated_stress_trace_RA.csv') #merats original stress traces
-    # data = pd.read_csv('data/vf_unscaled/3.61_out.csv') # Vonfrey Fillament w/ 0.4g
+    data = pd.read_csv('data/vf_unscaled/3.61_out.csv') # Vonfrey Fillament w/ 0.4g
     # data = pd.read_csv('data/vf_unscaled/4.08_out.csv') # Vonfrey Fillament w/ 1pyt .0g
     # data = pd.read_csv('data/vf_unscaled/4.17_out.csv') # Vonfrey Fillament w/ 1.4g
     # data = pd.read_csv('data/vf_unscaled/4.31_out.csv') # Vonfrey Fillament w/ 2.0g
-    data = pd.read_csv('data/vonfreystresstraces/4.56_out.csv') # Vonfrey Fillament w/ 4.0g
+    # data = pd.read_csv('data/vonfreystresstraces/4.56_out.csv') # Vonfrey Fillament w/ 4.0g
 
     time = data['Time (ms)'].values
-    stress = 0.01 * data[data.columns[1]].values
+    stress = 0.1 * data[data.columns[1]].values
 
     #stress = weight * stress
     #time, stress = get_interp_stress(0.600001)
@@ -258,7 +256,7 @@ def fit_single_rec_mp(args):
 def plot_single_fit(lmpars_fit, groups, time, stress,
                     rec_spike_time, plot_kws={}, roll=True,
                     plot_rec=False, plot_mod=True,
-                    fig=None, axs=None, save_data=True, fname=None,
+                    fig=None, axs=None, save_data=True, fname="single_residual_model",
                     **kwargs):
     if roll:
         rec_fr = kwargs['rec_fr_roll']
@@ -479,7 +477,26 @@ class Stimulus:
             lmpars_cko[k].value *= scale
         return lmpars_cko
         
+    '''
+    filtered_spike_time:represents the spike times of the afferents post-filtereing
+        for RA
+            -applies a mask that excludes spikes that occur outside the [550ms,900nms]
 
+    mod_spike_time  = array of spikes generated from stress input and afferent model parameters
+
+    mod_fr_inst = stores the IFFS corresponding to spikes in mod_spike_time
+
+    ********
+    # first_spike_time = filtered_spike_time[0] - 368 if len(filtered_spike_time) > 0 else None
+        - this statement is used in the case for the merat interpolated stress file
+        - the first spike where stress is non-0 in the interpolated stree file is at 369ms
+
+    ********
+
+    
+    
+    
+    '''
     def simulate_response(self, afferent):
         weights = [1.0]
         spikes_per_afferent = []
@@ -527,7 +544,7 @@ class Stimulus:
                 decayed_stress,  # fitApproach.data_dicts_dicts[animal][stim]['mod_data_dict']['stress'],
                 fitApproach.data_dicts_dicts[afferent.afferent_type][stim]['mod_data_dict']['groups'],
                 **params_dict)
-            print("SPIKE TRACE BASED ON TIME", spike_time_to_trace(mod_spike_time))
+
 
             # Lindsay's version:
             # mod_spike_time, mod_fr_inst = get_mod_spike(lmpars_cko,
@@ -539,9 +556,11 @@ class Stimulus:
 
                 mask = (mod_spike_time < 550) | (mod_spike_time > 900)
                 filtered_spike_time = mod_spike_time  # mod_spike_time[mask]
+
                 filtered_fr_inst = mod_fr_inst  # [mask]
             else:
                 filtered_spike_time = mod_spike_time
+
                 filtered_fr_inst = mod_fr_inst
 
             if len(mod_spike_time) == 0:
@@ -615,8 +634,8 @@ class Stimulus:
         print("Mean Firing Rate: ", mean_firing_frequency, ' Hz') if mean_firing_frequency > 0 else None
         peak_firing_frequency = np.max(mod_fr_inst_interpolated) if len(filtered_fr_inst) > 0 else 0
         print("Peak Firing Rate: ", peak_firing_frequency, ' Hz') if peak_firing_frequency > 0 else None
-        first_spike_time = filtered_spike_time[0] - 368 if len(filtered_spike_time) > 0 else None
-
+        # first_spike_time = filtered_spike_time[0] - 368 if len(filtered_spike_time) > 0 else None
+        first_spike_time = filtered_spike_time[0] if len(filtered_spike_time) > 0 else None
         # Placeholder return value
         return {
             'afferent_type': afferent.afferent_type,
@@ -860,6 +879,118 @@ class Simulation:
         plt.savefig(f'generated_plots/{config.stimulus_type}_stim_{config.stimulus_diameter[0]}mm_{config.stress}kPa_afferent_distribution.png')
         plt.show()
 
+def run_single_unit_model():
+    # Define parameters for a single afferent simulation
+    afferent_type = "SA"
+
+
+    # loading stress file data 
+    # data = pd.read_csv("data/vonfreystresstraces/3.61_out.csv")
+    # data = pd.read_csv("data/vonfreystresstraces/4.08_out.csv")
+    data = pd.read_csv("data/vonfreystresstraces/4.17_out.csv")
+    # data = pd.read_csv("data/vonfreystresstraces/4.31_out.csv")
+    # data = pd.read_csv("data/vonfreystresstraces/4.56_out.csv")
+    # data = pd.read_csv("data/vonfreystresstraces/3.61_out_scaled_mean_extended.csv")
+    # data = pd.read_csv("data/vonfreystresstraces/3.61_out_shallow_ramp.csv")
+    data = pd.read_csv("data/vonfreystresstraces/3.61_out_steep_ramp.csv")
+    # data =pd.read_csv("data/updated_dense_interpolated_stress_trace_RA.csv")
+    time = data['Time (ms)'].values
+    stress = 0.05 * data[data.columns[1]].values
+
+    lmpars = lmpars_init_dict['t3f12v3final']
+    if afferent_type == "RA":
+        # Use the correct RA parameters
+        # lmpars['tau1'].value = 8
+        # lmpars['tau2'].value = 200
+        # lmpars['tau3'].value = 1
+        # lmpars['k1'].value = 80
+        # lmpars['k2'].value = 0
+        # lmpars['k3'].value = 0.0001
+        # lmpars['k4'].value = 0
+    # if afferent_type == "RA":
+        lmpars['tau1'].value = 2.5 
+        lmpars['tau2'].value = 200
+        lmpars['tau3'].value = 1
+        lmpars['k1'].value = 35
+        lmpars['k2'].value = 0
+        lmpars['k3'].value = 0.0
+        lmpars['k4'].value = 0
+
+    #'RA': {'tau1': 2.5, 'tau2': 200, 'tau3': 1, 'k1': 35, 'k2': 0, 'k3': 0, 'k4': 0}}
+    groups = MC_GROUPS
+    mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress)
+    
+
+    # check for if the spikes are generated
+    if len(mod_spike_time) == 0 or len(mod_fr_inst) == 0:
+        logging.warning("spikes couldnt be generated")
+        return
+
+    # checking if the lenghts are equal for plotting
+    if len(mod_spike_time) != len(mod_fr_inst):
+        if len(mod_fr_inst) > 1:
+            mod_fr_inst_interp = np.interp(mod_spike_time, time, mod_fr_inst)
+        else:
+            print("note enough data to mod_fr_interp")
+            mod_fr_inst_interp = np.zeros_like(mod_spike_time)
+    else:
+        mod_fr_inst_interp = mod_fr_inst
+
+    # fig, ax = plt.subplots(figsize=(10, 4))
+    # ax.eventplot(mod_spike_time, color='black', lineoffsets=1, linelengths=0.8)
+    # ax.set_xlabel("Time (ms)")
+    # ax.set_ylabel("Spikes")
+    # ax.set_title(f"{afferent_type} Afferent")
+    # ax.set_xlim([0, max(time)])  # Set the x-axis limit based on the time duration
+    # ax.set_ylim([0.5, 1.5])  # Keeps the y-axis height consistent for visual appeal
+    # ax.yaxis.set_visible(False)  # Hide y-axis ticks if you only want to show spike events
+
+    # plt.tight_layout()
+    # plt.show()
+
+    # # Print relevant output information
+    # print("Single Afferent Response:")
+    # print(f"Afferent Type: {afferent_type}")
+    # print("Spike Times (ms):", mod_spike_time)
+    # print("Instantaneous Firing Rate (Hz):", mod_fr_inst_interp * 1e3)
+
+    # # Plot the response
+    # plt.figure()
+    # plt.plot(mod_spike_time, mod_fr_inst_interp * 1e3, label="Firing Rate (Hz)", marker = "o", linestyle = "none")
+    # plt.plot(time, stress, label="Stress (kpa)", color="red")
+    # plt.xlabel('Time (ms)')
+    # plt.ylabel('Firing Rate (Hz) / Stress')
+    # plt.title(f'Single Unit Response: {afferent_type}')
+    # plt.legend()
+    # plt.tight_layout()
+    # plt.show()
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+    # First plot: Spike events
+    ax2.eventplot(mod_spike_time, color='black', lineoffsets=1, linelengths=0.8)
+    ax2.set_ylabel("Spikes")
+    ax2.set_xlabel('Time (ms)')
+    ax2.set_xlim([0, max(time)])  # Set the x-axis limit based on the time duration
+    ax2.set_ylim([0.5, 1.5])  # Keeps the y-axis height consistent for visual appeal
+    ax2.yaxis.set_visible(False)  # Hide y-axis ticks if you only want to show spike events
+
+    # Second plot: Firing rate and stress
+    ax1.plot(mod_spike_time, mod_fr_inst_interp * 1e3, label="Firing Rate (Hz)", marker='o', linestyle='none')
+    ax1.plot(time, stress, label="Stress (kPa)", color="red")
+    ax1.set_title(f"{afferent_type} Afferent")
+    ax1.set_ylabel('Firing Rate (Hz) / Stress')
+    ax1.legend()
+
+    # Apply tight layout for better spacing
+    plt.tight_layout()
+
+    # Show the plots
+    plt.show()
+
+
+
+
 def main():
     # Check if command line arguments are provided
     start = time.perf_counter()
@@ -946,5 +1077,6 @@ def main():
     print(f'Finished in {round(finish - start, 2)} second(s)')
 
 if __name__ == '__main__':
+    # run_single_unit_model()
     main()
 
