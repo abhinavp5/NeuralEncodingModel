@@ -113,7 +113,7 @@ def get_spikes(current):
     integration_start = 0.0
     timestamp_finalpot = np.zeros([2])
     trace_length = int(DURATION / LIF_RESOLUTION + 1)
-    #print('trace_length = ', trace_length)
+    print('trace_length = ', trace_length)
     spike_time = []
     larger_time = 0.0
     while ini_time <= DURATION:
@@ -125,6 +125,10 @@ def get_spikes(current):
         if timestamp_finalpot[1] > threshold:
             spike_time.append(larger_time)
         ini_time = LIF_RESOLUTION + larger_time
+
+    print(f"Generated spike times (before return): {spike_time[:5]}")  # Debugging spike times
+
+
     return spike_time
 
 

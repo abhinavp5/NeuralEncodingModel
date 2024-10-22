@@ -150,7 +150,9 @@ def get_single_residual(lmpars, groups,
     residual = mod_fr_inst_interp - sample_fr_roll
     print((residual**2).sum())
     return residual
-
+"""
+Given Parameters return IFFs from stress traces
+"""
 def get_mod_spike(lmpars, groups, time, stress):
     params = lmpars_to_params(lmpars)
     mod_spike_time, mod_fr_inst = stress_to_fr_inst(time, stress,
@@ -888,6 +890,7 @@ Function for running just the Single Unit Model, runs for every size and plots s
 the IFF.
 
 """
+
 def run_single_unit_model():
     """Code for running only the Interpolated Stress Model"""
         # if afferent_type = "RA":
@@ -950,8 +953,6 @@ def run_single_unit_model():
             #'RA': {'tau1': 2.5, 'tau2': 200, 'tau3': 1, 'k1': 35, 'k2': 0, 'k3': 0, 'k4': 0}}
             groups = MC_GROUPS
             mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress)
-            
-
             # check for if the spikes are generated
             if len(mod_spike_time) == 0 or len(mod_fr_inst) == 0:
                 logging.warning(f"SPIKES COULDNT NOT BE GENRERATED on {vf} and {ramp} ")
@@ -966,10 +967,10 @@ def run_single_unit_model():
             else:
                 mod_fr_inst_interp = mod_fr_inst
 
-            print(f"INTERPOLATED DATA:", mod_fr_inst_interp* 1e3)
+            # print(f"INTERPOLATED DATA:", mod_fr_inst_interp* 1e3)
 
             
-
+            print("MAX TIME:", np.max(time))
 
             # Plotting Firing Rate & stress
             axs[vf_idx, ramp_idx].plot(mod_spike_time, mod_fr_inst_interp * 1e3, label="Firing Rate (Hz)", marker='o', linestyle='none')
@@ -985,84 +986,82 @@ def run_single_unit_model():
 
     plt.tight_layout()
     plt.show()
-"""
-Same as the function above, run_single_unit_model, except the graph of the stress traces
-and the graph of the IFF's are on seperate graphs
-"""
-def run_single_unit_model_separate_graphs():
-    """Code for running only the Interpolated Stress Model and plotting firing rate and stress on separate graphs."""
-    # Assuming necessary variables like pd, plt, MC_GROUPS, lmpars_init_dict, etc., are already imported and accessible
-    og_data = pd.read_csv("data/updated_dense_interpolated_stress_trace_RA.csv")
-    og_stress = og_data[og_data.columns[1]].to_numpy()
 
-    vf_tip_sizes = [3.61, 4.08, 4.17, 4.31, 4.56]
-    type_of_ramp = ["out", "shallow", "steep"]
 
+
+
+
+"""
+Code for running only the Interpolated Stress Model and plotting 
+IFF and stress on the same graph for a single ramp type. INitially had a 5x3 chart
+but I couldnt reliably change the the constant LIF_RESOLUTION for every different
+type of ramp & resolution:
+shallow, LIF_RESOLUTION == 2
+out, LIF_RESOLUTION == 1
+steep, LIF_RESOLUTION == .5
+
+Inputs:
+afferent_type: "RA" or "SA"
+ramp: "shallow", "out", or "steep"
+"""
+def run_single_unit_model_combined_graph(afferent_type, ramp):
+
+    
+    vf_tip_sizes = [3.61, 4.08, 4.17, 4.31, 4.56]  # The five tip sizes to plot
     vf_list_len = len(vf_tip_sizes)
-    ramps_len = len(type_of_ramp)
 
-    fig_firing_rate, axs_firing_rate = plt.subplots(vf_list_len, ramps_len, figsize=(10, 8), sharex=True, sharey=True)
-    fig_stress, axs_stress = plt.subplots(vf_list_len, ramps_len, figsize=(10, 8), sharex=True, sharey=True)
+    # Create subplots for firing rate and stress in a 5x1 layout
+    fig, axs = plt.subplots(vf_list_len, 1, figsize=(8, 10), sharex=True, sharey=True)
 
-    legend_added_firing_rate = False
-    legend_added_stress = False
-
+    legend_added = False
     for vf_idx, vf in enumerate(vf_tip_sizes):
-        for ramp_idx, ramp in enumerate(type_of_ramp):
+        data = pd.read_csv(f"data/vf_unscaled/{vf}_{ramp}.csv")
 
-            data = pd.read_csv(f"data/vf_unscaled/{vf}_{ramp}.csv")
+        # Define parameters for a single afferent simulation
+        time = data['Time (ms)'].to_numpy()
 
-            # Define parameters for a single afferent simulation
-            afferent_type = "SA" 
-            time = data['Time (ms)'].to_numpy()
+        # Scaling factor
+        scaling_factor = 0.28
+        stress = scaling_factor * data[data.columns[1]].values
 
-            # Scaling factor
-            scaling_factor = 0.28
-            stress = scaling_factor * data[data.columns[1]].values
+        lmpars = lmpars_init_dict['t3f12v3final']
+        if afferent_type == "RA":
+            lmpars['tau1'].value = 2.5
+            lmpars['tau2'].value = 200
+            lmpars['tau3'].value = 1
+            lmpars['k1'].value = 35
+            lmpars['k2'].value = 0
+            lmpars['k3'].value = 0.0
+            lmpars['k4'].value = 0
 
-            lmpars = lmpars_init_dict['t3f12v3final']
-            if afferent_type == "RA":
-                lmpars['tau1'].value = 2.5
-                lmpars['tau2'].value = 200
-                lmpars['tau3'].value = 1
-                lmpars['k1'].value = 35
-                lmpars['k2'].value = 0
-                lmpars['k3'].value = 0.0
-                lmpars['k4'].value = 0
+        groups = MC_GROUPS
+        mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress)
 
-            groups = MC_GROUPS
-            mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress)
+        if len(mod_spike_time) == 0 or len(mod_fr_inst) == 0:
+            logging.warning(f"SPIKES COULD NOT BE GENERATED on {vf} and {ramp}")
+            continue
 
-            if len(mod_spike_time) == 0 or len(mod_fr_inst) == 0:
-                logging.warning(f"SPIKES COULD NOT BE GENERATED on {vf} and {ramp}")
-                continue
-
-            if len(mod_spike_time) != len(mod_fr_inst):
-                if len(mod_fr_inst) > 1:
-                    mod_fr_inst_interp = np.interp(mod_spike_time, time, mod_fr_inst)
-                else:
-                    mod_fr_inst_interp = np.zeros_like(mod_spike_time)
+        if len(mod_spike_time) != len(mod_fr_inst):
+            if len(mod_fr_inst) > 1:
+                mod_fr_inst_interp = np.interp(mod_spike_time, time, mod_fr_inst)
             else:
-                mod_fr_inst_interp = mod_fr_inst
+                mod_fr_inst_interp = np.zeros_like(mod_spike_time)
+        else:
+            mod_fr_inst_interp = mod_fr_inst
 
-            # Plot Firing Rate
-            axs_firing_rate[vf_idx, ramp_idx].plot(mod_spike_time, mod_fr_inst_interp * 1e3, label="Firing Rate (Hz)", marker='o', linestyle='none')
-            axs_firing_rate[vf_idx, ramp_idx].set_title(f"{vf} {ramp} {afferent_type} Afferent")
-            axs_firing_rate[vf_idx, ramp_idx].set_ylabel('Firing Rate (Hz)')
-            if not legend_added_firing_rate:
-                axs_firing_rate[vf_idx, ramp_idx].legend()
-                legend_added_firing_rate = True
+        axs[vf_idx].plot(mod_spike_time, mod_fr_inst_interp * 1e3, label="Firing Rate (Hz)", marker='o', linestyle='none')
+        axs[vf_idx].plot(time, stress, label="Stress (kPa)", color="red")
+        axs[vf_idx].set_title(f"{vf} {ramp} {afferent_type} Afferent")
+        axs[vf_idx].set_ylabel('Firing Rate (Hz) / Stress (kPa)')
+        
+        if not legend_added:
+            axs[vf_idx].legend()
+            legend_added = True
 
-            # Plot Stress
-            axs_stress[vf_idx, ramp_idx].plot(time, stress, label="Stress (kPa)", color="red")
-            axs_stress[vf_idx, ramp_idx].set_title(f"{vf} {ramp} {afferent_type} Afferent")
-            axs_stress[vf_idx, ramp_idx].set_ylabel('Stress (kPa)')
-            if not legend_added_stress:
-                axs_stress[vf_idx, ramp_idx].legend()
-                legend_added_stress = True
-
+    fig.suptitle(f"Firing Rate and Stress for Ramp Type: {ramp}")
     plt.tight_layout()
     plt.show()
+
 
 
 
@@ -1153,8 +1152,9 @@ def main():
     print(f'Finished in {round(finish - start, 2)} second(s)')
 
 if __name__ == '__main__':
-    # run_single_unit_model_separate_graphs()
-    run_single_unit_model()
+    global LIF_RESOLUTION
+    run_single_unit_model_combined_graph("RA","shallow")
+    # run_single_unit_model()
     # main()
 
 

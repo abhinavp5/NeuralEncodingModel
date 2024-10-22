@@ -41,6 +41,9 @@ def stress_to_group_current(fine_time, fine_stress, groups, **params):
     single_gen_current = stress_to_current(
         fine_time, fine_stress, **params).sum(axis=1)
     group_gen_current = np.multiply(single_gen_current[None].T, groups)
+    # print("CURRENT:", group_gen_current)
+    print(f"Fine time: {fine_time[:5]}")
+    print(f"Generated current (first group): {group_gen_current[:5, 0]}")
     return group_gen_current
 
 
@@ -79,10 +82,17 @@ def spike_time_to_fr_inst(spike_time):
     return spike_time_to_fr_roll(spike_time, 1)
 
 
+
 def stress_to_fr_inst(fine_time, fine_stress, groups, **params):
     group_gen_current = stress_to_group_current(fine_time, fine_stress,
                                                 groups, **params)
     spike_time = get_spikes(group_gen_current)
+
+    print(f"Spike times: {spike_time[:5]}")
+    print(f"Fine time: {fine_time[:5]}")
+
+
+
     return np.array(spike_time), spike_time_to_fr_inst(spike_time)
 
 

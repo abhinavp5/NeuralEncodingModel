@@ -12,13 +12,14 @@ import os
 
 
 # %% LIF constants
-LIF_RESOLUTION = 1  # in msec
+LIF_RESOLUTION = 2  # in msec
 #DURATION = 1000 # in milliseconds
 # DURATION = 5000 # in msec ##commenting this out but this was Merats original Duration
-DURATION = 1000
+DURATION = 10000
 
 REFRACTORY_PERIOD = 1  # in msec
-MC_GROUPS = np.array([8, 5, 3, 1])
+MC_GROUPS = np.array([8, 5, 3, 1]) 
+# MC_GROUPS = np.array([8,8,8,8])
 #MC_GROUPS = np.array([8, 8, 8, 8])
 # %% LIF_PARAMS
 #    threshold (mV)
