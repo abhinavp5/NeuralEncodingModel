@@ -1,1 +1,1 @@
-    data = pd.read_csv("data/vonfreystresstraces/4.08_out.csv")
+run_single
