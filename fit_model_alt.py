@@ -128,7 +128,6 @@ lmpars = Parameters()
 lmpars.add('tau1', value=8, vary=False)
 lmpars.add('tau2', value=200, vary=False)
 lmpars.add('tau3', value=1832, vary=True) #drop it down to 0, you'll see a big difference in the spikes.
-
 lmpars.add('tau4', value=np.inf, vary=False)
 lmpars.add('k1', value=1., vary=True, min=0)
 lmpars.add('k2', value=.3, vary=True, min=0)

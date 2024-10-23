@@ -1017,11 +1017,11 @@ def run_single_unit_model_combined_graph(afferent_type, ramp):
     for vf_idx, vf in enumerate(vf_tip_sizes):
         data = pd.read_csv(f"data/vf_unscaled/{vf}_{ramp}.csv")
 
-        # Define parameters for a single afferent simulation
         time = data['Time (ms)'].to_numpy()
 
         # Scaling factor
-        scaling_factor = 0.28
+        scaling_factor = 0.01
+        print("MAX STRESS", np.max(data[data.columns[1]].values))
         stress = scaling_factor * data[data.columns[1]].values
 
         lmpars = lmpars_init_dict['t3f12v3final']
@@ -1152,8 +1152,7 @@ def main():
     print(f'Finished in {round(finish - start, 2)} second(s)')
 
 if __name__ == '__main__':
-    global LIF_RESOLUTION
-    run_single_unit_model_combined_graph("RA","shallow")
+    run_single_unit_model_combined_graph("SA","shallow")
     # run_single_unit_model()
     # main()
 
