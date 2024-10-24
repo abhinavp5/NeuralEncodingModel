@@ -12,7 +12,7 @@ import os
 
 
 # %% LIF constants
-LIF_RESOLUTION = 2  # in msec
+LIF_RESOLUTION = .5  # in msec
 #DURATION = 1000 # in milliseconds
 # DURATION = 5000 # in msec ##commenting this out but this was Merats original Duration
 DURATION = 10000
