@@ -12,7 +12,7 @@ The input of the function is stress, and output is current.
 import numpy as np
 import os
 from scipy.interpolate import interp1d
-from model_constants import LIF_RESOLUTION, FE_NUM, DURATION, tau_brush, k_brush
+from model_constants import LifConstants, FE_NUM, DURATION, tau_brush, k_brush
 from scipy import signal
 
 #Should try diharmonic and triharmonic stimuli
@@ -209,7 +209,7 @@ def interpolate_stress(rough_time, rough_stress):
     output_time_stress : 2d-array
         Fine time and Fine stress from Linear Spline of rough time and stress.
     """
-    fine_time = np.arange(0, rough_time[-1], LIF_RESOLUTION)
+    fine_time = np.arange(0, rough_time[-1], LifConstants.LIF_RESOLUTION)
     fine_spline = interp1d(rough_time, rough_stress, kind='slinear')
     fine_stress = fine_spline(fine_time)
     #fine_stress = fine_stress*np.sin(100*fine_time)
@@ -231,7 +231,7 @@ def interpolate_disp(rough_time,rough_stress):
     output_time_stress : 2d-array
         Fine time and Fine stress from Linear Spline of rough time and stress.
     """
-    fine_time = np.arange(0, rough_time[-1], LIF_RESOLUTION)
+    fine_time = np.arange(0, rough_time[-1], LifConstants.LIF_RESOLUTION)
     fine_spline = interp1d(rough_time, rough_stress, kind='slinear')
     fine_stress = fine_spline(fine_time)
     #fine_stress = fine_stress*np.sin(100*fine_time)

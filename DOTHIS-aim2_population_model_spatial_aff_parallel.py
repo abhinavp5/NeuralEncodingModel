@@ -23,7 +23,7 @@ from itertools import combinations
 from scipy.interpolate import interp1d
 from lmfit import minimize, fit_report, Parameters
 from stress_to_spike import (stress_to_fr_inst, spike_time_to_fr_roll,spike_time_to_fr_inst, spike_time_to_trace)
-from model_constants import (MC_GROUPS, FS, ANIMAL_LIST, STIM_NUM, REF_ANIMAL, REF_STIM_LIST, WINDOW, REF_DISPL,COLOR_LIST, CKO_ANIMAL_LIST, k_brush, tau_brush, DURATION)
+from model_constants import (MC_GROUPS, FS, ANIMAL_LIST, STIM_NUM, REF_ANIMAL, REF_STIM_LIST, WINDOW, REF_DISPL,COLOR_LIST, CKO_ANIMAL_LIST, k_brush, tau_brush, DURATION, LifConstants)
 from gen_function import get_interp_stress, stress_to_current
 from popul_model import pop_model
 from fit_model_alt import FitApproach
@@ -1044,10 +1044,10 @@ def run_same_plot(afferent_type, ramp, scaling_factor):
         
 
         plt.tight_layout()
-        # plt.show()
+        plt.show()
         
 
-        plt.savefig(f"vf_graphs/stress_iffs_different_plot/{afferent_type}_{ramp}_{scaling_factor}.png")
+        # plt.savefig(f"vf_graphs/stress_iffs_different_plot/{afferent_type}_{ramp}_{scaling_factor}.png")
 
 
 """
@@ -1121,21 +1121,16 @@ def run_single_unit_model_combined_graph(afferent_type, ramp):
     plt.tight_layout()
 
 
-def sa_shallow_steep_stacked(vf_tip_size, afferent_type,  scaling_factor = .45):
-        vf_tip_sizes = [3.61,4.17, 4.56]  # The five tip sizes to plot
-
-        vf_list_len = len(vf_tip_sizes)
-
+def sa_shallow_steep_stacked(vf_tip_size, afferent_type,  scaling_factor):
         types_of_ramp = ["shallow", "steep"]
         fig, axs = plt.subplots(2, 1, figsize=(12,8), sharex=True)
-        global LIF_RESOLUTION
     
         for ramp_idx, ramp in enumerate(types_of_ramp):
             if ramp == ("shallow"):
-                LIF_RESOLUTION = 2
+                LifConstants.set_resolution(2)
 
             elif ramp == ("steep"):
-                LIF_RESOLUTION = .5
+                LifConstants.set_resolution(.5)
 
             
             data = pd.read_csv(f"data/vf_unscaled/{vf_tip_size}_{ramp}.csv")
@@ -1166,13 +1161,12 @@ def sa_shallow_steep_stacked(vf_tip_size, afferent_type,  scaling_factor = .45):
             else:
                 mod_fr_inst_interp = mod_fr_inst
             
-            axs[0].plot(time, stress, label = f"{vf_tip_size}" )
+            axs[0].plot(time, stress, label = f"{ramp}")
 
-
-            axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, label = f"{ramp} for {vf_tip_size}", marker = "o", linestyle = "none")
+            axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, label = f"{ramp}", marker = "o", linestyle = "none")
 
             
-        axs[0].set_title(f"{afferent_type} Von Frey Stress Traces")
+        axs[0].set_title(f"{vf_tip_size}mm {afferent_type} Von Frey Stress Traces with scaling factor = {scaling_factor}")
         axs[0].set_xlabel("Time (ms)")
         axs[0].set_ylabel("Stress (kPa)")
         axs[0].legend(loc = "best")
@@ -1183,8 +1177,11 @@ def sa_shallow_steep_stacked(vf_tip_size, afferent_type,  scaling_factor = .45):
         axs[1].legend(loc = "best")
         axs[1].set_xlim([0, 5000])
         
+
         plt.tight_layout()
-        plt.show()
+        # plt.show()
+
+        plt.savefig(f"shallow_steep_same_plot/{vf_tip_size}mm_{afferent_type}_stacked_{scaling_factor}.png")
 
 
 
@@ -1278,8 +1275,8 @@ if __name__ == '__main__':
     # run_single_unit_model_combined_graph("SA","shallow")
     # run_single_unit_model()
     # main()
-    # run_same_plot("SA","steep", .56)
-    sa_shallow_steep_stacked(3.61,"SA")
+    # run_same_plot("RA","steep", .10)
+    sa_shallow_steep_stacked(4.56,"SA",.1)
 
 
 

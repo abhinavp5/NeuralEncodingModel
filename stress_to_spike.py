@@ -14,7 +14,7 @@ from lif_model import get_spikes
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from model_constants import (LIF_RESOLUTION, DURATION, MC_GROUPS)
+from model_constants import (LifConstants, DURATION, MC_GROUPS)
 from gen_function import stress_to_current
 
 
@@ -64,10 +64,10 @@ def spike_time_to_trace(spike_time):
         [0] = time increments in the total duration.
         [1] = 1 if there is a spike at this time, 0 otherwise.
     """
-    spike_trace = np.zeros([int(DURATION/LIF_RESOLUTION)+1, 2])
-    spike_trace[:, 0] = np.arange(0, DURATION+LIF_RESOLUTION, LIF_RESOLUTION)
-    spike_trace[(spike_time / LIF_RESOLUTION).astype(int), 1] = 1
-    print("LIF RESOLUTION",LIF_RESOLUTION)
+    spike_trace = np.zeros([int(DURATION/LifConstants.LIF_RESOLUTION)+1, 2])
+    spike_trace[:, 0] = np.arange(0, DURATION+LifConstants.LIF_RESOLUTION, LifConstants.LIF_RESOLUTION)
+    spike_trace[(spike_time / LifConstants.LIF_RESOLUTION).astype(int), 1] = 1
+    print("LIF RESOLUTION",LifConstants.LIF_RESOLUTION)
     return spike_trace
 
 

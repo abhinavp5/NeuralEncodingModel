@@ -11,8 +11,19 @@ import numpy as np
 import os
 
 
+
+
 # %% LIF constants
-LIF_RESOLUTION = .5
+
+class LifConstants:
+    LIF_RESOLUTION = 0.5
+
+    @classmethod
+    def set_resolution(cls,value):
+        cls.LIF_RESOLUTION = value
+
+
+# LIF_RESOLUTION = .5
 #DURATION = 1000 # in milliseconds
 # DURATION = 5000 # in msec ##commenting this out but this was Merats original Duration
 DURATION = 5000

@@ -8,7 +8,7 @@ This module contains functions for running the LIF model.
 """
 
 import numpy as np
-from model_constants import (MC_GROUPS, LIF_PARAMS, LIF_RESOLUTION, DURATION,
+from model_constants import (MC_GROUPS, LIF_PARAMS, LifConstants, DURATION,
                              REFRACTORY_PERIOD)
 
 
@@ -59,7 +59,7 @@ def runge_kutta(current, start_time):
     """
     threshold = LIF_PARAMS[0]
     mc_size = MC_GROUPS.shape[0]
-    h = LIF_RESOLUTION
+    h = LifConstants.LIF_RESOLUTION
     time_span = DURATION - start_time
     temp_time = 0.
     current_index = int(start_time / h)
@@ -112,7 +112,7 @@ def get_spikes(current):
     ini_time = 0.0
     integration_start = 0.0
     timestamp_finalpot = np.zeros([2])
-    trace_length = int(DURATION / LIF_RESOLUTION + 1)
+    trace_length = int(DURATION / LifConstants.LIF_RESOLUTION + 1)
     print('trace_length = ', trace_length)
     spike_time = []
     larger_time = 0.0
@@ -124,7 +124,7 @@ def get_spikes(current):
                               ini_time + REFRACTORY_PERIOD])
         if timestamp_finalpot[1] > threshold:
             spike_time.append(larger_time)
-        ini_time = LIF_RESOLUTION + larger_time
+        ini_time = LifConstants.LIF_RESOLUTION + larger_time
 
     print(f"Generated spike times (before return): {spike_time[:5]}")  # Debugging spike times
 

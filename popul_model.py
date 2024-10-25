@@ -9,7 +9,7 @@ import sys
 import time
 import setpyximport
 from lif_model import get_spikes
-from model_constants import (LIF_RESOLUTION, DURATION, MC_GROUPS)
+from model_constants import (LifConstants, DURATION, MC_GROUPS)
 from gen_function import stress_to_current
 
 
