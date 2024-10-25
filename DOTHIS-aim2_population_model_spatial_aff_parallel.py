@@ -23,8 +23,7 @@ from itertools import combinations
 from scipy.interpolate import interp1d
 from lmfit import minimize, fit_report, Parameters
 from stress_to_spike import (stress_to_fr_inst, spike_time_to_fr_roll,spike_time_to_fr_inst, spike_time_to_trace)
-from model_constants import (MC_GROUPS, FS, ANIMAL_LIST, STIM_NUM, REF_ANIMAL, REF_STIM_LIST, WINDOW, REF_DISPL,
-                             COLOR_LIST, CKO_ANIMAL_LIST, k_brush, tau_brush, DURATION)
+from model_constants import (MC_GROUPS, FS, ANIMAL_LIST, STIM_NUM, REF_ANIMAL, REF_STIM_LIST, WINDOW, REF_DISPL,COLOR_LIST, CKO_ANIMAL_LIST, k_brush, tau_brush, DURATION)
 from gen_function import get_interp_stress, stress_to_current
 from popul_model import pop_model
 from fit_model_alt import FitApproach
@@ -1122,6 +1121,71 @@ def run_single_unit_model_combined_graph(afferent_type, ramp):
     plt.tight_layout()
 
 
+def sa_shallow_steep_stacked(vf_tip_size, afferent_type,  scaling_factor = .45):
+        vf_tip_sizes = [3.61,4.17, 4.56]  # The five tip sizes to plot
+
+        vf_list_len = len(vf_tip_sizes)
+
+        types_of_ramp = ["shallow", "steep"]
+        fig, axs = plt.subplots(2, 1, figsize=(12,8), sharex=True)
+        global LIF_RESOLUTION
+    
+        for ramp_idx, ramp in enumerate(types_of_ramp):
+            if ramp == ("shallow"):
+                LIF_RESOLUTION = 2
+
+            elif ramp == ("steep"):
+                LIF_RESOLUTION = .5
+
+            
+            data = pd.read_csv(f"data/vf_unscaled/{vf_tip_size}_{ramp}.csv")
+            time = data['Time (ms)'].to_numpy()
+            stress = scaling_factor * data[data.columns[1]].values
+
+            lmpars = lmpars_init_dict['t3f12v3final']
+            if afferent_type == "RA":
+                lmpars['tau1'].value = 2.5
+                lmpars['tau2'].value = 200
+                lmpars['tau3'].value = 1
+                lmpars['k1'].value = 35
+                lmpars['k2'].value = 0
+                lmpars['k3'].value = 0.0
+                lmpars['k4'].value = 0
+
+            groups = MC_GROUPS
+            mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress)
+
+            if len(mod_spike_time) == 0 or len(mod_fr_inst) == 0:
+                logging.warning(f"SPIKES COULD NOT BE GENERATED on {vf_tip_size} and {ramp}")
+                continue
+            if len(mod_spike_time) != len(mod_fr_inst):
+                if len(mod_fr_inst) > 1:
+                    mod_fr_inst_interp = np.interp(mod_spike_time, time, mod_fr_inst)
+                else:
+                    mod_fr_inst_interp = np.zeros_like(mod_spike_time)
+            else:
+                mod_fr_inst_interp = mod_fr_inst
+            
+            axs[0].plot(time, stress, label = f"{vf_tip_size}" )
+
+
+            axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, label = f"{ramp} for {vf_tip_size}", marker = "o", linestyle = "none")
+
+            
+        axs[0].set_title(f"{afferent_type} Von Frey Stress Traces")
+        axs[0].set_xlabel("Time (ms)")
+        axs[0].set_ylabel("Stress (kPa)")
+        axs[0].legend(loc = "best")
+
+        axs[1].set_title(f"{afferent_type} Steep and Shallow IFF's associated with Stress Traces")
+        axs[1].set_xlabel("Spike Time (ms)")
+        axs[1].set_ylabel("Firing Rate (kHz)")
+        axs[1].legend(loc = "best")
+        axs[1].set_xlim([0, 5000])
+        
+        plt.tight_layout()
+        plt.show()
+
 
 
 
@@ -1214,9 +1278,8 @@ if __name__ == '__main__':
     # run_single_unit_model_combined_graph("SA","shallow")
     # run_single_unit_model()
     # main()
-
-
-    run_same_plot("SA","steep", .56)
+    # run_same_plot("SA","steep", .56)
+    sa_shallow_steep_stacked(3.61,"SA")
 
 
 
