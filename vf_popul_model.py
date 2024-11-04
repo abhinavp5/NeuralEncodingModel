@@ -125,7 +125,7 @@ class VF_Population_Model:
         to calculate firing"""
 
         #regex pattern for exstracting the distance from the middle point
-        distance_regex = r'^\d\.\d{2}$'
+        distance_regex = r'\d\.\d{2}'
 
         #reading data from spatial stress data file for 50 (or n) data points in a grid
         coords = pd.read_csv(f"data/vfspatial/{self.vf_tip_size}_spatial_coords.csv", header = None)
@@ -157,13 +157,16 @@ class VF_Population_Model:
             distance_scaling_factor = 0 
 
             if f"Coord {i} Stress (kPa)" in stress_df.columns:
-                spatial_stress = stress_data[f"Coord {i} Stress (kPa)"]
+
+                spatial_stress = stress_df[f"Coord {i} Stress (kPa)"]
+                
                 spatial_stress_max = np.max(spatial_stress)
 
                 #inner loop to iterate through all radial distances from the center
                 for col in radial_stress.columns[1:]:
                     #stores the distacnef rom the cetner in mm
-                    distance_from_center = re.findall(distance_regex, col)
+                    distance_from_center = re.findall(distance_regex, col)[0]
+
                     
                     #scaling facotr only calculated for the first stress trace in the radial file
                     if radial_spatial_flag:
@@ -172,8 +175,9 @@ class VF_Population_Model:
                         radial_stress_max = np.max(radial_stress_vals)
                         distance_scaling_factor = spatial_stress_max / radial_stress_max
                         radial_spatial_flag = False
-
-                    scaled_stress = radial_stress[col] * distance_scaling_factor
+                    
+                    #Performing Scaling 
+                    scaled_stress = radial_stress[col] * distance_scaling_factor* scaling_factor
                     stress_data[i][distance_from_center] = {
                         "Time": radial_time,
                         f"Stress at {distance_from_center}_from_center": scaled_stress
