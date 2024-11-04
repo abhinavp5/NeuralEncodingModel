@@ -535,7 +535,7 @@ class Stimulus:
 
             fine_time = fitApproach.data_dicts_dicts[afferent.afferent_type][stim]['mod_data_dict']['time']
             fine_stress = fitApproach.data_dicts_dicts[afferent.afferent_type][stim]['mod_data_dict']['stress']
-            # print("Fine Stress Max: ", fine_stress)
+            print("Fine Stress Max: ", fine_stress)
             decayed_stress = calculate_stress_at_position(fine_stress, stimulus_diameter = self.diameter, rf_area=afferent.rf_size, xk=afferent.x_pos, yk=afferent.y_pos,
                                                         x_stimulus=self.x_stim, y_stimulus=self.y_stim, stimulus_type = self.type)
             # print("Decayed Stress Max: ", np.max(decayed_stress))
@@ -972,7 +972,7 @@ def main():
 
 
 if __name__ == '__main__':
-    pass
+    main()
 
 
 
