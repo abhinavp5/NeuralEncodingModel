@@ -535,7 +535,6 @@ class Stimulus:
 
             fine_time = fitApproach.data_dicts_dicts[afferent.afferent_type][stim]['mod_data_dict']['time']
             fine_stress = fitApproach.data_dicts_dicts[afferent.afferent_type][stim]['mod_data_dict']['stress']
-            print("Fine Stress Max: ", fine_stress)
             decayed_stress = calculate_stress_at_position(fine_stress, stimulus_diameter = self.diameter, rf_area=afferent.rf_size, xk=afferent.x_pos, yk=afferent.y_pos,
                                                         x_stimulus=self.x_stim, y_stimulus=self.y_stim, stimulus_type = self.type)
             # print("Decayed Stress Max: ", np.max(decayed_stress))
@@ -663,6 +662,18 @@ class Afferent:
         return max(calculate_stress_at_position(stimulus.diameter, self.rf_size, self.x_pos, self.y_pos, stimulus.x_pos, stimulus.y_pos, stimulus.type))
 
 class SimulationConfig:
+
+    def __init__(self, tongue_size, density_ratio, n_afferents,
+                 rf_sizes, stimulus_diameter, x_stimulus, y_stimulus):
+        self.tongue_size = tongue_size
+        self.density_ratio = density_ratio
+        self.n_afferents = n_afferents
+        self.rf_sizes = rf_sizes
+        self.stimulus_diameter = stimulus_diameter
+        self.x_stimulus = x_stimulus
+        self.y_stimulus = y_stimulus
+
+        
     def __init__(self,stimulus_type, tongue_size, density_ratio, n_afferents,
                  rf_sizes, stimulus_diameter, x_stimulus, y_stimulus,stress):
         self.stimulus_type = stimulus_type
@@ -674,6 +685,7 @@ class SimulationConfig:
         self.x_stimulus = x_stimulus
         self.y_stimulus = y_stimulus
         self.stress = stress
+
         
     def generate_afferent_position(self):
         ###should be same as afferenet_positions_with_sizes####
@@ -690,6 +702,7 @@ class Simulation:
         self.afferents = [Afferent(aff_type,x,y,rf) for aff_type,x,y,rf  in config.generate_afferent_position()]
         self.results_by_diameter = {dia: [] for dia in config.stimulus_diameter}
 
+
     def run(self):
         max_workers = os.cpu_count()
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -704,12 +717,13 @@ class Simulation:
             peak_firing_frequency = [afferent["peak_firing_frequency"] for afferent in self.results_by_diameter[dia]]
             first_spike_time = [afferent["first_spike_time"] for afferent in self.results_by_diameter[dia]]
 
-
+            
             activated = [d for d in self.results_by_diameter[dia] if d.get("activated", True) ==True]
             
 
                                  
             stresses = [afferent['stress'] for afferent in self.results_by_diameter[dia]]
+  
             return stresses[-1], mean_firing_frequency, peak_firing_frequency, first_spike_time
         
 
@@ -976,4 +990,3 @@ if __name__ == '__main__':
 
 
 
-# %%

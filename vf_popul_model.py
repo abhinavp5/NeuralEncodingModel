@@ -31,10 +31,6 @@ class VF_Population_Model:
         self.aff_type = aff_type
         self.results = None
         self.stress_data = None
-
-
-
-
     """
         functino takes in a vf_tip_size (given that that there is data assicated with it) an
         afferent type, and runs the single unit model for all of those coordinates with the data
@@ -60,7 +56,6 @@ class VF_Population_Model:
 
         #iterating through each of the coordinates
         for i, row in coords.iloc[1:].iterrows():
-            
             #getting stress data
             
             if f"Coord {i} Stress (kPa)" in stress_data.columns:
@@ -138,53 +133,45 @@ class VF_Population_Model:
         
         stress_data = {}
         iff_data = {}
-        afferent_type = []
-        x_pos = []
-        y_pos = []
-        spikes = []
-        mean_firing_frequency = []
-        peak_firing_frequency = []
-        first_spike_time = []
-        last_spike_time = []
+
 
         #Outer loop top iterate through all n spatial points
         for i, row in coords.iloc[1:].iterrows():
-            #Flag to ensure that only 0.00mm or only the first stress trace in the radial file gets a scaling factor calculated
             radial_spatial_flag = True
             stress_data[i] = {}
             iff_data[i] = {}
 
-            distance_scaling_factor = 0 
-
             if f"Coord {i} Stress (kPa)" in stress_df.columns:
-
                 spatial_stress = stress_df[f"Coord {i} Stress (kPa)"]
-                
                 spatial_stress_max = np.max(spatial_stress)
 
-                #inner loop to iterate through all radial distances from the center
+                # Inner loop to iterate through radial distances
                 for col in radial_stress.columns[1:]:
-                    #stores the distacnef rom the cetner in mm
-                    distance_from_center = re.findall(distance_regex, col)[0]
+                    distance_from_center = float(re.findall(distance_regex, col)[0])
 
-                    
-                    #scaling facotr only calculated for the first stress trace in the radial file
+                    # Initialize lists for each coordinate-distance pair
+                    afferent_type = []
+                    x_pos = []
+                    y_pos = []
+                    spikes = []
+                    mean_firing_frequency = []
+                    peak_firing_frequency = []
+                    first_spike_time = []
+                    last_spike_time = []
+
                     if radial_spatial_flag:
-                        #getting stress data
                         radial_stress_vals = radial_stress[col]
                         radial_stress_max = np.max(radial_stress_vals)
                         distance_scaling_factor = spatial_stress_max / radial_stress_max
                         radial_spatial_flag = False
                     
-                    #Performing Scaling 
-                    scaled_stress = radial_stress[col] * distance_scaling_factor* scaling_factor
+                    scaled_stress = radial_stress[col] * distance_scaling_factor * scaling_factor
+
                     stress_data[i][distance_from_center] = {
                         "Time": radial_time,
-                        f"Stress at {distance_from_center}_from_center": scaled_stress
+                        distance_from_center: scaled_stress.to_numpy()
                     }
 
-
-                    #Calculating spikes and IFFs
                     lmpars = lmpars_init_dict['t3f12v3final']
                     if self.aff_type == "RA":
                         lmpars['tau1'].value = 2.5
@@ -196,7 +183,7 @@ class VF_Population_Model:
                         lmpars['k4'].value = 0
 
                     groups = MC_GROUPS
-                    mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, stress_data[i][distance_from_center]["Time"], stress_data[i][distance_from_center][f"Stress at {distance_from_center}_from_center"])
+                    mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, stress_data[i][distance_from_center]["Time"], stress_data[i][distance_from_center][distance_from_center])
 
                     if len(mod_spike_time) == 0 or len(mod_fr_inst) == 0:
                         logging.warning(f"SPIKES COULD NOT BE GENERATED FOR {self.vf_tip_size}")
@@ -210,27 +197,28 @@ class VF_Population_Model:
                     else:
                         mod_fr_inst_interp = mod_fr_inst
 
-                    features, _ = pop_model(mod_spike_time,mod_fr_inst_interp)
+                    features, _ = pop_model(mod_spike_time, mod_fr_inst_interp)
 
-                    #appending stuff to lists
+                    # Append single values to the lists
                     afferent_type.append(self.aff_type)
                     x_pos.append(row[0])
                     y_pos.append(row[1])
-                    spikes.append(len(mod_spike_time) if len(mod_spike_time) !=0 else None)
+                    spikes.append(len(mod_spike_time) if len(mod_spike_time) != 0 else None)
                     mean_firing_frequency.append(features["Average Firing Rate"])
                     peak_firing_frequency.append(np.max(mod_fr_inst_interp))
-                    first_spike_time.append(mod_spike_time[0] if len(mod_spike_time) != None else None)
+                    first_spike_time.append(mod_spike_time[0] if len(mod_spike_time) != 0 else None)
                     last_spike_time.append(mod_spike_time[-1])
 
+                    # Store each coordinate-distance dictionary within iff_data
                     iff_data[i][distance_from_center] = {
                         'afferent_type': self.aff_type,
-                        'x_position': x_pos,
-                        'y_position': y_pos,
-                        'num_of_spikes' : spikes,
-                        'mean_firing_frequency' : mean_firing_frequency,
-                        'peak_firing_frequency' : peak_firing_frequency, 
-                        'first_spike_time': first_spike_time,
-                        'last_spike_time' : last_spike_time
+                        'x_position': x_pos[0],
+                        'y_position': y_pos[0],
+                        'num_of_spikes': spikes[0],
+                        'mean_firing_frequency': mean_firing_frequency[0],
+                        'peak_firing_frequency': peak_firing_frequency[0],
+                        'first_spike_time': first_spike_time[0],
+                        'last_spike_time': last_spike_time[0]
                     }
             else:
                 logging.warning("STRESS VALUE COULD NOT BE INDEXED")
@@ -245,7 +233,7 @@ class VF_Population_Model:
         df.to_csv(file_path, index = False)
         return file_path 
     
-    def plot(self):
+    def plot_spatial_coords(self):
         """
         Plots the iffs on a grid for the original n points, the magniude of the peak firing
         frequency directly affects the size of the circle plotted, and the opacity
@@ -280,12 +268,13 @@ class VF_Population_Model:
         plt.ylim(min(y_positions) - 1, max(y_positions) + 1)
         plt.savefig(f"vf_graphs/aggregated_results_on_grid/{self.vf_tip_size}_{self.aff_type}_constant_opacity.png")
 
+        
+
     def get_iffs(self):
         return self.results
     
     def get_stress_traces(self):
         return self.stress_data
-
 
 if __name__ == '__main__':
     #creates model class
