@@ -663,19 +663,9 @@ class Afferent:
 
 class SimulationConfig:
 
-    def __init__(self, tongue_size, density_ratio, n_afferents,
-                 rf_sizes, stimulus_diameter, x_stimulus, y_stimulus):
-        self.tongue_size = tongue_size
-        self.density_ratio = density_ratio
-        self.n_afferents = n_afferents
-        self.rf_sizes = rf_sizes
-        self.stimulus_diameter = stimulus_diameter
-        self.x_stimulus = x_stimulus
-        self.y_stimulus = y_stimulus
-
-        
-    def __init__(self,stimulus_type, tongue_size, density_ratio, n_afferents,
-                 rf_sizes, stimulus_diameter, x_stimulus, y_stimulus,stress):
+    def __init__(self, tongue_size, density_ratio, n_afferents, rf_sizes, stimulus_type=None,
+                stimulus_diameter=None, x_stimulus=None, y_stimulus=None, stress=None):
+            
         self.stimulus_type = stimulus_type
         self.tongue_size = tongue_size
         self.density_ratio = density_ratio
@@ -685,6 +675,7 @@ class SimulationConfig:
         self.x_stimulus = x_stimulus
         self.y_stimulus = y_stimulus
         self.stress = stress
+
 
         
     def generate_afferent_position(self):
@@ -698,9 +689,11 @@ class SimulationConfig:
 class Simulation:
     def __init__(self, config : SimulationConfig):
         self.config = config
-        self.stimuli = [Stimulus(config.stimulus_type, dia, x, y )for dia in config.stimulus_diameter for x in config.x_stimulus for y in config.y_stimulus]
+        if config.stimulus_type is not None:
+            self.stimuli = [Stimulus(config.stimulus_type, dia, x, y )for dia in config.stimulus_diameter for x in config.x_stimulus for y in config.y_stimulus]
+        if config.stimulus_diameter is not None:
+            self.results_by_diameter = {dia: [] for dia in config.stimulus_diameter}
         self.afferents = [Afferent(aff_type,x,y,rf) for aff_type,x,y,rf  in config.generate_afferent_position()]
-        self.results_by_diameter = {dia: [] for dia in config.stimulus_diameter}
 
 
     def run(self):
@@ -725,7 +718,7 @@ class Simulation:
             stresses = [afferent['stress'] for afferent in self.results_by_diameter[dia]]
   
             return stresses[-1], mean_firing_frequency, peak_firing_frequency, first_spike_time
-        
+    
 
     def simulate_afferent_response(self,afferent, stimulus):
         return stimulus.simulate_response(afferent)
@@ -855,7 +848,6 @@ class Simulation:
                         s=np.pi * (afferent.rf_size) ** 2, label=afferent.afferent_type)
             
             
-        
 
         # alphas_and_positions = set()
 
@@ -895,6 +887,9 @@ class Simulation:
         plt.tight_layout()
         plt.savefig(f'generated_plots/{config.stimulus_type}_stim_{config.stimulus_diameter[0]}mm_{config.stress}kPa_afferent_distribution.png')
         plt.show()
+    
+    def get_afferents(self):
+        return self.afferents
 
 
 
@@ -957,7 +952,7 @@ def main():
         stress = 5 #stress in pascals placed placed by the stimulus
     # Create a SimulationConfig object
     
-    config = SimulationConfig(stimulus_type, tongue_size, density_ratio, n_afferents, rf_sizes, stimulus_diameter, x_stimulus, y_stimulus,stress)
+    config = SimulationConfig(tongue_size, density_ratio, n_afferents, rf_sizes,stimulus_type,stimulus_diameter, x_stimulus, y_stimulus,stress)
 
     # Initialize the Simulation class with the config
     simulation = Simulation(config)
@@ -986,7 +981,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    pass
 
 
 
