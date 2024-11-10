@@ -676,7 +676,6 @@ class SimulationConfig:
         self.y_stimulus = y_stimulus
         self.stress = stress
 
-
         
     def generate_afferent_position(self):
         ###should be same as afferenet_positions_with_sizes####
