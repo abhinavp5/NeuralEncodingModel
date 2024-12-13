@@ -279,13 +279,14 @@ class VF_Population_Model:
 if __name__ == '__main__':
     #creates model class
     vf_model = VF_Population_Model(4.17, "SA")
+    vf_model.plot_spatial_coords()
 
-    #runs the model which calculates the results
-    # vf_model.spatial_stress_vf_model()
-    vf_model.radial_stress_vf_model()
-    iffs_results = vf_model.get_iffs()
-    stress_results = vf_model.get_stress_traces()
-    print(stress_results)
+    # #runs the model which calculates the results
+    # # vf_model.spatial_stress_vf_model()
+    # vf_model.radial_stress_vf_model()
+    # iffs_results = vf_model.get_iffs()
+    # stress_results = vf_model.get_stress_traces()
+    # print(stress_results)
 
     # #writing the data to csv
     # vf_model.aggregate_results()
