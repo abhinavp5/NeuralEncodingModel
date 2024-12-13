@@ -16,7 +16,7 @@ import os
 # %% LIF constants
 
 class LifConstants:
-    LIF_RESOLUTION = 0.5
+    LIF_RESOLUTION = .5
 
     @classmethod
     def set_resolution(cls,value):
