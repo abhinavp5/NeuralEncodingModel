@@ -240,7 +240,7 @@ def interpolate_disp(rough_time,rough_stress):
 
 
 # %% Convert stress to current
-def stress_to_current(fine_time, fine_stress, tau_arr, k_arr, g = 0.2, h =.5 ): #, afferent_type='default', lateral_velocity=None):
+def stress_to_current(fine_time, fine_stress ,tau_arr, k_arr,g = 0.4, h = 1): #, afferent_type='default', lateral_velocity=None):
     """
     Generate current from the stress of a single Merkel cell.
 
@@ -262,6 +262,8 @@ def stress_to_current(fine_time, fine_stress, tau_arr, k_arr, g = 0.2, h =.5 ): 
         Generator current array from the generator function;
         each column represent one component.
     """
+    print(f"g:{g}")
+    print(f"h:{h}")
     # if afferent_type == 'Atoh1CKO':
     #     # Compute the instantaneous current as the product of lateral velocity and sensitivity factor k
     #     inst_current = k_brush * lateral_velocity
