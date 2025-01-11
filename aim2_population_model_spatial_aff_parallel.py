@@ -151,10 +151,11 @@ def get_single_residual(lmpars, groups,
 """
 Given Parameters return IFFs from stress traces
 """
-def get_mod_spike(lmpars, groups, time, stress):
+def get_mod_spike(lmpars, groups, time, stress, g =.4, h = 1):
+
     params = lmpars_to_params(lmpars)
     mod_spike_time, mod_fr_inst = stress_to_fr_inst(time, stress,
-                                                    groups, **params)
+                                                    groups,g=g,h=h,**params)
     return (mod_spike_time, mod_fr_inst)
 
 def lmpars_to_params(lmpars):
