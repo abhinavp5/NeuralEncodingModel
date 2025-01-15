@@ -240,7 +240,7 @@ def interpolate_disp(rough_time,rough_stress):
 
 
 # %% Convert stress to current
-def stress_to_current(fine_time, fine_stress, tau_arr, k_arr): #, afferent_type='default', lateral_velocity=None):
+def stress_to_current(fine_time, fine_stress ,tau_arr, k_arr,g = 0.4, h = 1): #, afferent_type='default', lateral_velocity=None):
     """
     Generate current from the stress of a single Merkel cell.
 
@@ -281,12 +281,14 @@ def stress_to_current(fine_time, fine_stress, tau_arr, k_arr): #, afferent_type=
     # return current_arr
     #Working version:
     first_derivative = np.diff(fine_stress)
+    # print(f"THe first derivatives is{first_derivative}")
     #first_derivative = first_derivative/np.max(first_derivative) #normalize
 
     second_derivative = np.diff(fine_stress, n=2)
+    # print(f"The 2nd Derivative is:{second_derivative}")
     #second_derivative = second_derivative/np.max(second_derivative) #normalize
-
-    ds = np.r_[0, 0.4*first_derivative[:-1] + 1*second_derivative] #Used 0.2 for Figure 2 results and 0.4 for Figure 3 results for second derivative
+ 
+    ds = np.r_[0, g *first_derivative[:-1] + h * second_derivative] #Used 0.2 for Figure 2 results and 0.4 for Figure 3 results for second derivative
     #print('Max INST Stress: ', np.max(ds))
     k_func_arr = k_arr * np.exp(np.divide(-fine_time[None].T, tau_arr))
     current_arr = np.column_stack(
