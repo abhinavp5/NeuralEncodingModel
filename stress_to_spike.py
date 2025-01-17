@@ -16,6 +16,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from model_constants import (LifConstants, DURATION, MC_GROUPS)
 from gen_function import stress_to_current
+import logging
 
 
 # %% Convert fine stress to current in all groups of Merkel Cells
@@ -77,10 +78,14 @@ def spike_time_to_fr_roll(spike_time, window_size): #calculating the firing rate
     isi_roll = pd.Series(isi_inst).rolling(window=window_size).mean()
     isi_roll[np.isnan(isi_roll)] = np.inf
     fr_roll = 1 / isi_roll
+    # logging.warning("Debug log for spike_time_to_fr_inst")
+    # print(f"isi_roll: {isi_roll}")
+    # print(f"fr_roll: {fr_roll}")
     return fr_roll
 
 
 def spike_time_to_fr_inst(spike_time):
+
     return spike_time_to_fr_roll(spike_time, 1)
 
 
@@ -88,7 +93,15 @@ def spike_time_to_fr_inst(spike_time):
 def stress_to_fr_inst(fine_time, fine_stress, groups,g= .4, h= 1 ,**params):
     group_gen_current = stress_to_group_current(fine_time, fine_stress,
                                                 groups,g=g,h=h, **params)
+
     spike_time = get_spikes(group_gen_current)
+    final_spike_time = np.array(spike_time)
+    iff = spike_time_to_fr_inst(spike_time=spike_time)
+    # logging.warning(f"Debugging Log for stress_to_fr_inst")
+    # print(f"Group Gen Current: {group_gen_current}")
+    # print(f"Spike Time (ms) {final_spike_time}")
+    # print(f"iff: {iff}")
+
 
     #debugging Statements
     # print(f"Spike times: {spike_time[:5]}")
@@ -96,7 +109,7 @@ def stress_to_fr_inst(fine_time, fine_stress, groups,g= .4, h= 1 ,**params):
 
 
 
-    return np.array(spike_time), spike_time_to_fr_inst(spike_time)
+    return final_spike_time, iff
 
 
 # %% Main function
