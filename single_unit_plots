@@ -198,7 +198,7 @@ def run_same_plot(afferent_type, ramp, scaling_factor = 1):
 
                 axs[0].plot(time, stress, label = f"{vf}")
                 mod_fr_inst_interp = mod_fr_inst_interp.astype(float)
-                axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, label = f"{vf}", marker = " " if afferent_type == "SA" else "o", linestyle = "solid" if afferent_type == "SA" else "none")
+                axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, label = f"{vf}", marker = " " if afferent_type == "RA" else "o", linestyle = "solid" if afferent_type == "RA" else "none")
 
         axs[0].set_title(f"{afferent_type} Von Frey Stress Traces")
         axs[0].set_xlabel("Time (ms)")
