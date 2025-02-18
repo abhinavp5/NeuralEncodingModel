@@ -11,7 +11,8 @@ import logging
 from lmfit import minimize, fit_report, Parameters
 from aim2_population_model_spatial_aff_parallel import get_mod_spike
 from model_constants import (MC_GROUPS, LifConstants)
-
+from scipy.ndimage import gaussian_filter1d
+from scipy.signal import savgol_filter
 
 #Global Variables
 lmpars_init_dict = {}
@@ -21,7 +22,7 @@ lmpars.add('tau2', value=200, vary=False) #tauSI(ms)
 lmpars.add('tau3', value=1744.6, vary=False)#tauUSI(ms)
 lmpars.add('tau4', value=np.inf, vary=False)
 lmpars.add('k1', value=.74, vary=False, min=0) #a constant
-lmpars.add('k2', value=2.75, vary=False, min=0) #b constant
+lmpars.add('k2', value=.2088, vary=False, min=0) #b constant
 # lmpars.add('k2', value=.2088, vary=False, min=0) #b constant
 lmpars.add('k3', value=.07, vary=False, min=0) #c constant
 lmpars.add('k4', value=.0312, vary=False, min=0)
@@ -142,12 +143,16 @@ steep, LIF_RESOLUTION == .5
 '''
 
 def run_same_plot(afferent_type, ramp, scaling_factor = 1):
-        vf_tip_sizes = [ 3.61, 4.08, 4.17, 4.31, 4.56]  # The five tip sizes to plot
+        def moving_average(data, window_size= 1):
+            return np.convolve(data, np.ones(window_size)/window_size, mode = 'valid')
+
+        colors = ['#440154', '#3b528b', '#21908c', '#5dc963', '#fde725']
+        vf_tip_sizes = [3.61, 4.08, 4.17, 4.31, 4.56]  # The five tip sizes to plot
         vf_list_len = len(vf_tip_sizes)
         LifConstants.set_resolution(1)
 
         fig, axs = plt.subplots(2, 1, figsize=(12,8), sharex=True)
-        for vf_idx, vf in enumerate(vf_tip_sizes):
+        for vf, color in zip(vf_tip_sizes,colors):
             try: 
                 #This is the previously used Unscaled Data
   
@@ -195,10 +200,30 @@ def run_same_plot(afferent_type, ramp, scaling_factor = 1):
             else:
                 mod_fr_inst_interp = mod_fr_inst
 
+                #Rough Case (Unsmoothed Lines)
+                axs[0].plot(time, stress, label = f"{vf}", color = color)
+                # mod_fr_inst_interp = mod_fr_inst_interp.astype(float)
+                # axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, label = f"{vf}", marker = " " if afferent_type == "RA" else "o", linestyle = "solid" if afferent_type == "RA" else "none")
 
-                axs[0].plot(time, stress, label = f"{vf}")
-                mod_fr_inst_interp = mod_fr_inst_interp.astype(float)
-                axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, label = f"{vf}", marker = " " if afferent_type == "RA" else "o", linestyle = "solid" if afferent_type == "RA" else "none")
+
+                #Smooth Case 1 (Applying Moving Average to the mod_fr_inst_interp)
+                # smooth_mod_spike_fr_interp = moving_average(mod_fr_inst_interp)
+                # smoothed_mod_spike_time = mod_spike_time[:len(smooth_mod_spike_fr_interp)]
+                # axs[1].plot(smoothed_mod_spike_time, smooth_mod_spike_fr_interp * 1e3, label=f"{vf}", marker=" " if afferent_type == "RA" else "o", linestyle="solid" if afferent_type == "RA" else "none")
+
+                #Smooth Case 2 (Applying Gaussian Filter)
+                smooth_mod_spike_fr_interp = gaussian_filter1d(mod_fr_inst_interp, sigma =7)
+                smooth_mod_spike_fr_interp = smooth_mod_spike_fr_interp.astype(float)
+                axs[1].plot(mod_spike_time, smooth_mod_spike_fr_interp * 1e3, color = color, label=f"{vf}", marker=" " if afferent_type == "RA" else "o", linestyle="solid" if afferent_type == "RA" else "none")
+
+
+                #smooth Case 3 (Applying Savitzky-Golay Filter)
+                # window_length = 11
+                # polyorder = 2
+                # smoothed_mod_fr_inst_interp = savgol_filter(mod_fr_inst_interp,window_length = window_length,polyorder =  polyorder)
+                # smoothed_mod_fr_inst_interp  = smoothed_mod_fr_inst_interp.astype(float)
+                # axs[1].plot(mod_spike_time, smoothed_mod_fr_inst_interp * 1e3, color = color, label=f"{vf}", marker=" " if afferent_type == "SA" else "o", linestyle="solid" if afferent_type == "SA" else "none")
+
 
         axs[0].set_title(f"{afferent_type} Von Frey Stress Traces")
         axs[0].set_xlabel("Time (ms)")
