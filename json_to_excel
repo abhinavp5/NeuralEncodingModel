@@ -1,0 +1,43 @@
+import json
+import pandas as pd
+
+def flatten_json(nested_json, parent_key='', sep='_'):
+    """
+    Recursively flatten a nested JSON structure.
+    """
+    flattened_dict = {}
+    for key, value in nested_json.items():
+        new_key = f"{parent_key}{sep}{key}" if parent_key else key
+        if isinstance(value, dict):
+            flattened_dict.update(flatten_json(value, new_key, sep=sep))
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                if isinstance(item, dict):
+                    flattened_dict.update(flatten_json(item, f"{new_key}{sep}{i}", sep=sep))
+                else:
+                    flattened_dict[f"{new_key}{sep}{i}"] = item
+        else:
+            flattened_dict[new_key] = value
+    return flattened_dict
+
+# Load JSON file
+json_file_path = "aggregated_radial_data.json"
+with open(json_file_path, "r") as json_file:
+    data = json.load(json_file)
+
+# Convert JSON to a flattened format
+flattened_data = []
+if isinstance(data, list):
+    for entry in data:
+        flattened_data.append(flatten_json(entry))
+else:
+    flattened_data.append(flatten_json(data))
+
+# Convert to Pandas DataFrame
+df = pd.DataFrame(flattened_data)
+
+# Save to CSV
+csv_file_path = "aggregated_radial_data.csv"
+df.to_csv(csv_file_path, index=False)
+
+print(f"CSV file saved successfully: {csv_file_path}")
