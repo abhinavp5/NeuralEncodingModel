@@ -1,19 +1,33 @@
-import pandas as pd
 import numpy as np
-import re
-import logging
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import re
+import logging
 
-"""
-@Author: Abhinav - This is my main code for the population model, Radial and Spatial
-"""
+
 class VF_Population_Model:
-    
+    """
+    A class to model the population response of afferents to vibratory force (VF) stimuli.
+    It uses spatial and radial stress data to simulate afferent firing responses.
+    """
+
     def __init__(self, vf_tip_size, aff_type, scaling_factor, density=None):
-        self.sf = scaling_factor 
+        """
+        Initialize the VF Population Model.
+
+        Parameters:
+        - vf_tip_size (float): The size of the VF tip in mm.
+        - aff_type (str): The type of afferent ("SA" or "RA").
+        - scaling_factor (float): The scaling factor applied to stress data.
+        - density (str, optional): The density of afferents ("Low", "Med", "High", "Realistic").
+        """
+        self.sf = scaling_factor
         self.vf_tip_size = vf_tip_size
         self.aff_type = aff_type
+        self.density = density.lower().capitalize() if density else None
+
+        # Instance variables for storing data
         self.results = None
         self.stress_data = None
         self.x_coords = None
@@ -22,103 +36,146 @@ class VF_Population_Model:
         self.radial_stress_data = None
         self.radial_iff_data = None
         self.SA_radius = None
-        self.g = None # g parameter from Merats paper
-        self.h = None # h parameter from Merats paper
-        self.density = density.lower().capitalize() if density else None
+        self.g = None
+        self.h = None
 
     def spatial_stress_vf_model(self, time_of_firing="peak", g=0.2, h=0.5):
+        """
+        Computes the stress model based on spatial coordinates and firing times.
+
+        Parameters:
+        - time_of_firing (str or float): "peak" or a specific firing time in ms.
+        - g (float): Model parameter for spike generation.
+        - h (float): Model parameter for spike generation.
+
+        Returns:
+        - dict: A dictionary containing afferent responses and spike information.
+        """
         self.time_of_firing = time_of_firing
         self.g = g
         self.h = h
 
-        coords = None
-        stress_data = None
-        if not self.density:
-            coords = pd.read_csv(f"data/anika_new_data/{self.vf_tip_size}/{self.vf_tip_size}_spatial_coords_corr.csv")
-        elif self.density in ["Low", "Med", "High", "Realistic"]:
-            coords = pd.read_csv(f"data/anika_new_data/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_spatial_coords_corr_{self.density.lower()}.csv")
-        else:
-            logging.error(f"Density is not specified correctly: {self.density}")
-            return
+        # Load spatial coordinate data
+        coords_file = f"data/P2/{self.density if self.density else self.vf_tip_size}/{self.vf_tip_size}_spatial_coords_corr.csv"
+        coords = pd.read_csv(coords_file)
 
-        self.x_coords = [float(row[0]) for row in coords.iloc[0:].values]
-        self.y_coords = [float(row[1]) for row in coords.iloc[0:].values]
+        self.x_coords = coords.iloc[:, 0].astype(float).tolist()
+        self.y_coords = coords.iloc[:, 1].astype(float).tolist()
 
-        if not self.density:
-            stress_data = pd.read_csv(f"data/anika_new_data/{self.vf_tip_size}/{self.vf_tip_size}_spatial_stress_corr.csv")
-        elif self.density in ["Low", "Med", "High", "Realistic"]:
-            stress_data = pd.read_csv(f"data/anika_new_data/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_spatial_stress_corr_{self.density}.csv")
-        else:
-            logging.error(f"Density is not specified correctly: {self.density}")
-            return
-
+        # Load stress data
+        stress_file = f"data/P2/{self.density if self.density else self.vf_tip_size}/{self.vf_tip_size}_spatial_stress_corr.csv"
+        stress_data = pd.read_csv(stress_file)
         time = stress_data['Time (ms)'].to_numpy()
 
-        # Initialize lists for storing results
-        afferent_type, x_pos, y_pos, spikes = [], [], [], []
-        mean_firing_frequency, peak_firing_frequency = [], []
-        first_spike_time, last_spike_time, stress_trace = [], [], []
-        cumulative_mod_spike_times, entire_iff = [], []
-
-        for i, row in coords.iterrows():
-            i += 1  
-            if f"Coord {i} Stress (kPa)" in stress_data.columns:
-                stress = stress_data[f"Coord {i} Stress (kPa)"] * self.sf
-            else:
-                continue
-
-            lmpars = lmpars_init_dict['t3f12v3final']
-            if self.aff_type == "RA":
-                lmpars['tau1'].value = 8
-                lmpars['tau2'].value = 200
-                lmpars['tau3'].value = 1
-                lmpars['k1'].value = 35
-                lmpars['k2'].value = 0
-                lmpars['k3'].value = 0.0
-                lmpars['k4'].value = 0
-            elif self.aff_type == "SA":
-                lmpars['tau1'].value = 8
-                lmpars['tau2'].value = 200
-                lmpars['tau3'].value = 1744.6
-                lmpars['tau4'].value = np.inf
-                lmpars['k1'].value = 0.74
-                lmpars['k2'].value = 2.75
-                lmpars['k3'].value = 0.07
-                lmpars['k4'].value = 0.0312
-
-            groups = MC_GROUPS
-            mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress, g=self.g, h=self.h)
-
-            if len(mod_spike_time) == 0 or len(mod_fr_inst) == 0:
-                continue
-
-            features, _ = pop_model(mod_spike_time, mod_fr_inst)
-
-            afferent_type.append(self.aff_type)
-            x_pos.append(row.iloc[0])
-            y_pos.append(row.iloc[1])
-            spikes.append(mod_spike_time)
-            entire_iff.append(mod_fr_inst)
-            mean_firing_frequency.append(features["Average Firing Rate"])
-
-            peak_firing_frequency.append(np.max(mod_fr_inst) if time_of_firing == "peak" else 0)
-
-            first_spike_time.append(mod_spike_time[0] if len(mod_spike_time) != 0 else None)
-            last_spike_time.append(mod_spike_time[-1])
-            stress_trace.append(stress)
-            cumulative_mod_spike_times.append(mod_spike_time)
-
-        self.results = {
-            'afferent_type': self.aff_type,
-            'x_position': x_pos,
-            'y_position': y_pos,
-            'spike_timings': spikes,
-            'mean_firing_frequency': mean_firing_frequency,
-            'peak_firing_frequency': peak_firing_frequency,
-            'first_spike_time': first_spike_time,
-            'last_spike_time': last_spike_time,
-            'each_coord_stress': stress_trace,
-            'entire_iff': entire_iff,
-            'cumulative_mod_spike_times': cumulative_mod_spike_times
+        # Initialize data structures
+        model_results = {
+            "afferent_type": self.aff_type,
+            "x_position": [],
+            "y_position": [],
+            "spike_timings": [],
+            "mean_firing_frequency": [],
+            "peak_firing_frequency": [],
+            "first_spike_time": [],
+            "last_spike_time": [],
+            "each_coord_stress": [],
+            "entire_iff": [],
+            "cumulative_mod_spike_times": []
         }
+
+        # Process each coordinate
+        for i, row in coords.iterrows():
+            stress_col = f"Coord {i+1} Stress (kPa)"
+            if stress_col not in stress_data.columns:
+                continue  # Skip if stress data is missing
+
+            stress = stress_data[stress_col] * self.sf
+
+            # Compute spikes using model (placeholder function `get_mod_spike`)
+            mod_spike_time, mod_fr_inst = get_mod_spike(time, stress, g=self.g, h=self.h)
+
+            if len(mod_spike_time) == 0:
+                continue  # Skip if no spikes
+
+            mod_fr_inst_interp = np.interp(mod_spike_time, time, mod_fr_inst) if len(mod_fr_inst) > 1 else np.zeros_like(mod_spike_time)
+            peak_firing_freq = np.max(mod_fr_inst_interp)
+
+            model_results["x_position"].append(row.iloc[0])
+            model_results["y_position"].append(row.iloc[1])
+            model_results["spike_timings"].append(mod_spike_time.tolist())
+            model_results["mean_firing_frequency"].append(np.mean(mod_fr_inst_interp))
+            model_results["peak_firing_frequency"].append(peak_firing_freq)
+            model_results["first_spike_time"].append(mod_spike_time[0])
+            model_results["last_spike_time"].append(mod_spike_time[-1])
+            model_results["each_coord_stress"].append(stress.tolist())
+            model_results["entire_iff"].append(mod_fr_inst_interp.tolist())
+            model_results["cumulative_mod_spike_times"].append(mod_spike_time.tolist())
+
+        self.results = model_results
+        return model_results
+
+    def radial_stress_vf_model(self, g=0.2, h=0.5):
+        """
+        Computes the stress model based on radial distances from the center.
+
+        Parameters:
+        - g (float): Model parameter for spike generation.
+        - h (float): Model parameter for spike generation.
+        """
+        if self.aff_type == "SA":
+            self.g = 0.2
+            self.h = 0.5
+        elif self.aff_type == "RA":
+            self.g = 0.4
+            self.h = 1.0
+
+        radial_stress_file = f"data/P2/{self.density if self.density else self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr.csv"
+        radial_stress = pd.read_csv(radial_stress_file)
+        radial_time = radial_stress['Time (ms)'].to_numpy()
+
+        stress_data = {}
+        iff_data = {}
+
+        # Process each radial distance
+        for col in radial_stress.columns[1:]:
+            matches = re.findall(r'\d\.\d{2}', col)
+            if not matches:
+                continue  # Skip if distance format is incorrect
+
+            distance_from_center = float(matches[0])
+            scaled_stress = radial_stress[col] * self.sf
+            stress_data[distance_from_center] = {
+                "Time": radial_time,
+                "Stress": scaled_stress.to_numpy()
+            }
+
+            # Compute spikes using model (placeholder function `get_mod_spike`)
+            mod_spike_time, mod_fr_inst = get_mod_spike(radial_time, scaled_stress, g=self.g, h=self.h)
+
+            if len(mod_spike_time) == 0:
+                iff_data[distance_from_center] = None
+                continue  # Skip if no spikes
+
+            mod_fr_inst_interp = np.interp(mod_spike_time, radial_time, mod_fr_inst) if len(mod_fr_inst) > 1 else np.zeros_like(mod_spike_time)
+
+            iff_data[distance_from_center] = {
+                'Time': stress_data[distance_from_center]["Time"].tolist(),
+                'Stress': stress_data[distance_from_center]["Stress"].tolist(),
+                'peak_firing_frequency': np.max(mod_fr_inst_interp),
+                'mod_spike_time': mod_spike_time.tolist(),
+                'entire_iff': mod_fr_inst_interp.tolist()
+            }
+
+        self.radial_stress_data = stress_data
+        self.radial_iff_data = iff_data
+
+    def get_model_results(self):
+        """Returns the spatial model results."""
         return self.results
+
+    def get_radial_iff_data(self):
+        """Returns the radial stress and firing frequency data."""
+        return self.radial_iff_data
+
+    def get_SA_radius(self):
+        """Returns the SA afferent radius."""
+        return self.SA_radius
