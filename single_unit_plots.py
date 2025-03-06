@@ -94,13 +94,22 @@ def run_single_unit_model():
                 # print(stress)
             lmpars = lmpars_init_dict['t3f12v3final']
             if afferent_type == "RA" :
-                lmpars['tau1'].value = 8
+                lmpars['tau1'].value = 2.5
                 lmpars['tau2'].value = 200
                 lmpars['tau3'].value = 1
                 lmpars['k1'].value = 35
                 lmpars['k2'].value = 0
                 lmpars['k3'].value = 0.0
                 lmpars['k4'].value = 0
+            elif afferent_type == "SA":
+                lmpars['tau1'].value = 2.5
+                lmpars['tau2'].value = 200
+                lmpars['tau3'].value = 1744.6
+                lmpars['tau4'].value = np.inf
+                lmpars['k1'].value = .74
+                lmpars['k2'].value = 2.75
+                lmpars['k3'].value = .07
+                lmpars['k4'].value = .0312
 
             #'RA': {'tau1': 2.5, 'tau2': 200, 'tau3': 1, 'k1': 35, 'k2': 0, 'k3': 0, 'k4': 0}}
             groups = MC_GROUPS
@@ -162,10 +171,10 @@ def run_same_plot(afferent_type, ramp, scaling_factor = 1):
             try: 
                 #This is the previously used Unscaled Data
   
-                data = pd.read_csv(f"data/P2/Realistic/{vf}/{vf}_radial_stress_corr_realistic.csv")
+                data = pd.read_csv(f"data/P3/Realistic/{vf}/{vf}_radial_stress_corr_realistic.csv")
                 time = data['Time (ms)'].to_numpy()
                 stress = scaling_factor * data[data.columns[1]].values
-            except FileNotFoundError as e:
+            except KeyError as e:
                 logging.warning(f"File not found for {vf} and {ramp}")
                 continue
 

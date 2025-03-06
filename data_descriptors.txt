@@ -1,0 +1,69 @@
+JSON Structure for aggregated_radial_data
+{
+  "Affernt_Type (SA or RA)": {
+    "density": {
+      "3.61: {
+        "distance_0": {
+          "Time": [0, 1, 2, ...],
+          "stress_data": [],
+          "mod_spike_time": [],
+          "Entire_iff": [0]
+        },
+        "distance_from center": {
+          "Time": [],
+          "stress_data": [],
+          "mod_spike_time": [],
+          "Entire_iff": []
+        }
+      },
+      "4.17": { ... },
+      "4.31": { ... }
+    },
+    "med": { ... },
+    "high": { ... },
+    "realistic": { ... }
+  },
+  "SA": { ... }
+}
+
+
+
+JSON Structure aggregated_spatial_data
+
+
+{
+  "RA": {
+    "low": {
+      "3.61": {
+        "x0,y0": {
+          "Time": [],
+          "stress_data": [],
+          "mod_spike_time": [],
+          "Entire_iff": [0, 0.5, 0, ...],
+          "mean_firing_frequency": 5.1,
+          "peak_firing_frequency": 15.2,
+          "first_spike_time": 1.2,
+          "last_spike_time": 8.7
+        },
+        "x1,y1": {
+          "Time": [],
+          "stress_data": [],
+          "mod_spike_time": [],
+          "Entire_iff": [],
+          "mean_firing_frequency": ,
+          "peak_firing_frequency": ,
+          "first_spike_time": ,
+          "last_spike_time": 
+        }
+      },
+      "4.17": { ... },
+      "4.31": { ... }
+    },
+    "med": { ... },
+    "high": { ... },
+    "realistic": { ... }
+  },
+  "SA": { ... }
+}
+
+
