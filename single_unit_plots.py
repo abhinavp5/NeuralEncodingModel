@@ -157,7 +157,7 @@ out, LIF_RESOLUTION == 1
 steep, LIF_RESOLUTION == .5
 '''
 
-def run_same_plot(afferent_type, ramp, scaling_factor = 1):
+def run_same_plot(afferent_type, ramp, scaling_factor = .1, plot_style = "smooth"):
         def moving_average(data, window_size= 1):
             return np.convolve(data, np.ones(window_size)/window_size, mode = 'valid')
 
@@ -170,8 +170,11 @@ def run_same_plot(afferent_type, ramp, scaling_factor = 1):
         for vf, color in zip(vf_tip_sizes,colors):
             try: 
                 #This is the previously used Unscaled Data
-  
-                data = pd.read_csv(f"data/P3/Realistic/{vf}/{vf}_radial_stress_corr_realistic.csv")
+                if vf == 4.56:
+                    data = pd.read_csv(f"data/P3/Realistic/{vf}/{vf}_radial_stress_corr_realistic.csv")
+                else:
+                    data = pd.read_csv(f"data/P4/Realistic/{vf}/{vf}_radial_stress_corr_realistic.csv")
+                logging.warning(f"Reading data for {vf}")
                 time = data['Time (ms)'].to_numpy()
                 stress = scaling_factor * data[data.columns[1]].values
             except KeyError as e:
@@ -180,7 +183,7 @@ def run_same_plot(afferent_type, ramp, scaling_factor = 1):
 
             lmpars = lmpars_init_dict['t3f12v3final']
             if afferent_type == "RA":
-                lmpars['tau1'].value = 8
+                lmpars['tau1'].value = 2.5
                 lmpars['tau2'].value = 200
                 lmpars['tau3'].value = 1
                 lmpars['k1'].value = 35
@@ -190,10 +193,10 @@ def run_same_plot(afferent_type, ramp, scaling_factor = 1):
             elif afferent_type == "SA":
                 lmpars['tau1'].value = 8
                 lmpars['tau2'].value = 200
-                lmpars['tau3'].value = 1
+                lmpars['tau3'].value = 1 
                 lmpars['tau4'].value = np.inf
                 lmpars['k1'].value = 0.74
-                lmpars['k2'].value = 2.75
+                lmpars['k2'].value = 1.0
                 lmpars['k3'].value = 0.07
                 lmpars['k4'].value = 0.0312
 
@@ -203,7 +206,7 @@ def run_same_plot(afferent_type, ramp, scaling_factor = 1):
                 mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress, g= 0.2, h = .5)
             elif afferent_type == "RA":
                 mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress, g= 0.4, h = 1)
-
+            logging.warning(f"VF:{vf} {len(mod_spike_time)}")
             if len(mod_spike_time) == 0 or len(mod_fr_inst) == 0:
                 logging.warning(f"SPIKES COULD NOT BE GENERATED on {vf} and {ramp}")
                 continue
@@ -215,30 +218,50 @@ def run_same_plot(afferent_type, ramp, scaling_factor = 1):
             else:
                 mod_fr_inst_interp = mod_fr_inst
 
-                #Rough Case (Unsmoothed Lines)
-                axs[0].plot(time, stress, label = f"{vf}", color = color)
-                # mod_fr_inst_interp = mod_fr_inst_interp.astype(float)
-                # axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, label = f"{vf}", marker = " " if afferent_type == "RA" else "o", linestyle = "solid" if afferent_type == "RA" else "none")
+            #Rough Case (Unsmoothed Lines)
+            axs[0].plot(time, stress, label = f"{vf}", color = color)
 
-
-                #Smooth Case 1 (Applying Moving Average to the mod_fr_inst_interp)
-                # smooth_mod_spike_fr_interp = moving_average(mod_fr_inst_interp)
-                # smoothed_mod_spike_time = mod_spike_time[:len(smooth_mod_spike_fr_interp)]
-                # axs[1].plot(smoothed_mod_spike_time, smooth_mod_spike_fr_interp * 1e3, label=f"{vf}", marker=" " if afferent_type == "RA" else "o", linestyle="solid" if afferent_type == "RA" else "none")
-
-                #Smooth Case 2 (Applying Gaussian Filter)
-                smooth_mod_spike_fr_interp = gaussian_filter1d(mod_fr_inst_interp, sigma =7)
+            if plot_style == "points":
+                # Plot individual points without smoothing
+                axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, color=color, label=f"{vf}", 
+                          marker="o" , 
+                          linestyle="none")
+                
+            else:  # plot_style == "smooth"
+                # Apply Gaussian smoothing and plot connected lines
+                smooth_mod_spike_fr_interp = gaussian_filter1d(mod_fr_inst_interp, sigma=7)
                 smooth_mod_spike_fr_interp = smooth_mod_spike_fr_interp.astype(float)
-                axs[1].plot(mod_spike_time, smooth_mod_spike_fr_interp * 1e3, color = color, label=f"{vf}", marker=" " if afferent_type == "SA" else "o", linestyle="solid" if afferent_type == "SA" else "none")
+                axs[1].plot(mod_spike_time, smooth_mod_spike_fr_interp * 1e3, color=color, 
+                          label=f"{vf}", marker=" ", linestyle="solid")
+                
+            # else:  # plot_style == "smooth"
+            #     # Create a smoothing mask - regions where we WANT to apply smoothing
+            #     # We want to avoid smoothing in 0-50ms, 1000-4000ms, and 4950ms+
+            #     smoothing_regions = (
+            #         ((mod_spike_time >= 350) & (mod_spike_time < 1000)) | 
+            #         ((mod_spike_time >= 4000) & (mod_spike_time < 4950))
+            #     )
+                
+            #     # Copy original firing rate data
+            #     final_fr = mod_fr_inst_interp.copy()
+                
+            #     # Apply Gaussian smoothing only in smoothing regions
+            #     if np.any(smoothing_regions):
+            #         # Apply smoothing only to selected time ranges
+            #         smooth_regions = gaussian_filter1d(mod_fr_inst_interp[smoothing_regions], sigma=7)
+            #         final_fr[smoothing_regions] = smooth_regions
+                
+            #     # Plot the mixed smoothed and unsmoothed data
+            #     axs[1].plot(mod_spike_time, final_fr * 1e3, color=color,
+            #                 label=f"{vf}", marker=" ", linestyle="solid")
 
-
-                #smooth Case 3 (Applying Savitzky-Golay Filter)
-                # window_length = 11
-                # polyorder = 2
-                # smoothed_mod_fr_inst_interp = savgol_filter(mod_fr_inst_interp,window_length = window_length,polyorder =  polyorder)
-                # smoothed_mod_fr_inst_interp  = smoothed_mod_fr_inst_interp.astype(float)
-                # axs[1].plot(mod_spike_time, smoothed_mod_fr_inst_interp * 1e3, color = color, label=f"{vf}", marker=" " if afferent_type == "SA" else "o", linestyle="solid" if afferent_type == "SA" else "none")
-
+        # Configure both axes
+        for ax in axs:
+            ax.set_xlim(left=0)  # Set x-axis to start at 0
+            ax.set_ylim(bottom=0)  # Set y-axis to start at 0
+            ax.minorticks_on()  # Enable minor ticks
+            ax.grid(True, which='major', linestyle='-', alpha=0.3)  # Add major grid lines
+            ax.grid(True, which='minor', linestyle=':', alpha=0.2)  # Add minor grid lines
 
         axs[0].set_title(f"{afferent_type} Von Frey Stress Traces")
         axs[0].set_xlabel("Time (ms)")
@@ -254,8 +277,8 @@ def run_same_plot(afferent_type, ramp, scaling_factor = 1):
         plt.tight_layout()
 
         
-        plt.savefig(f"vf_graphs/stress_iffs_different_plot/{afferent_type}_{ramp}_{scaling_factor}.png")
-        plt.savefig(f"Figure1/{afferent_type}_{ramp}_{scaling_factor}.png")
+        plt.savefig(f"vf_graphs/stress_iffs_different_plot/{afferent_type}_{ramp}_{scaling_factor}_{plot_style}.png")
+        plt.savefig(f"Figure1/{afferent_type}_{ramp}_{scaling_factor}_{plot_style}.png")
         plt.show()
 
 """
@@ -330,8 +353,6 @@ def run_single_unit_model_combined_graph(afferent_type, ramp):
 
     fig.suptitle(f"Firing Rate and Stress for Ramp Type: {ramp}")
     plt.tight_layout()
-
-
 def sa_shallow_steep_stacked(vf_tip_size, afferent_type, scaling_factor):
         types_of_ramp = ["shallow", "steep"]
         fig, axs = plt.subplots(2, 1, figsize=(12,8), sharex=True)
@@ -398,13 +419,7 @@ def sa_shallow_steep_stacked(vf_tip_size, afferent_type, scaling_factor):
 
 
 def main():
-    # run_single_unit_model_combined_graph("SA","shallow")
-    # run_single_unit_model()
-    # main()
-    run_same_plot("SA", "out", 1)
-    # sa_shallow_steep_stacked(4.56,"SA",.56)
-
-    # sa_shallow_steep_stacked(4.56,"SA",.1)
+    run_same_plot("RA", "out", 1, "points")
 
 if __name__ == '__main__':
     main()
