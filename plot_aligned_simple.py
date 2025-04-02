@@ -5,200 +5,252 @@ import os
 import logging
 import argparse
 from scipy.ndimage import gaussian_filter1d
+from lmfit import minimize, fit_report, Parameters
+from aim2_population_model_spatial_aff_parallel import get_mod_spike
+from model_constants import MC_GROUPS
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+#Global Variables
+lmpars_init_dict = {}
+lmpars = Parameters()
+lmpars.add('tau1', value=8, vary=False) #tauRI(ms)
+lmpars.add('tau2', value=200, vary=False) #tauSI(ms)
+lmpars.add('tau3', value=1744.6, vary=False)#tauUSI(ms)
+lmpars.add('tau4', value=np.inf, vary=False)
+lmpars.add('k1', value=.74, vary=False, min=0) #a constant
+lmpars.add('k2', value=.2088, vary=False, min=0) #b constant
+# lmpars.add('k2', value=.2088, vary=False, min=0) #b constant
+lmpars.add('k3', value=.07, vary=False, min=0) #c constant
+lmpars.add('k4', value=.0312, vary=False, min=0)
+lmpars_init_dict['t3f12v3final'] = lmpars
+plt.rcParams["font.family"] = "Arial"
+plt.rcParams["font.size"] = 20  # Very big font
+
 
 # Set plot parameters
 plt.rcParams["font.family"] = "Arial"
 plt.rcParams["font.size"] = 20  # Very big font
 
-def plot_aligned_simplified(aligned_file, afferent_type="SA", scaling_factor=1.0, plot_style="smooth"):
+
+
+def plot_aligned_simplified(aligned_file, afferent_type="SA", plot_style="smooth"):
     """
     Plot the stress traces and simplified firing rates from aligned stress traces.
-    This function creates a simplified model that generates firing rates throughout the time range.
+    Uses the same smoothing logic as single_unit_plots.py.
+    """
+    # Load the aligned data with more robust parsing
+    try:
+        # First try with default settings
+        aligned_data = pd.read_csv(aligned_file)
+    except Exception as e:
+        logging.error(f"Error loading CSV file: {str(e)}")
+        raise FileExistsError(f"Error loading CSV file: {str(e)}")
+    
+
+    # Get the time values from the first column
+    time = aligned_data.iloc[:, 0].values
+    
+
+
+    vf_tip_sizes = [3.61, 4.08, 4.17, 4.31, 4.56]  # Sorted in increasing order
+    colors = ['#440154', '#3b528b', '#21908c', '#5dc963', '#fde725']
+
+    # Create the figure with two subplots
+    fig, axs = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+    
+
+
+    # Plot each VF tip size
+    for idx, (vf_tip_size, color) in enumerate(zip(vf_tip_sizes, colors)):
+        # Get the actual stress values from the appropriate column
+        stress = aligned_data.iloc[:, idx+1].values
+        logging.info(f"Stress values shape: {stress.shape}")
+        logging.info(f"Time values shape: {time.shape}")
+        # Set up model parameters based on afferent type
+
+        if afferent_type == "SA":
+            lmpars = lmpars_init_dict['t3f12v3final']
+            lmpars['tau1'].value = 8
+            lmpars['tau2'].value = 200
+            lmpars['tau3'].value = 1 
+            lmpars['tau4'].value = np.inf
+            lmpars['k1'].value = 0.74
+            lmpars['k2'].value = 1.0
+            lmpars['k3'].value = 0.07
+            lmpars['k4'].value = 0.0312
+        elif afferent_type == "RA":
+            lmpars = lmpars_init_dict['t3f12v3final']
+            lmpars['tau1'].value = 2.5
+            lmpars['tau2'].value = 200
+            lmpars['tau3'].value = 1
+            lmpars['k1'].value = 35
+            lmpars['k2'].value = 0
+            lmpars['k3'].value = 0.0
+            lmpars['k4'].value = 0
+        
+        groups = MC_GROUPS
+        if afferent_type == "SA":
+            mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress, g=0.2, h=0.5)
+        elif afferent_type == "RA":
+            mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress, g=0.4, h=1)
+        
+        logging.warning(f"VF: {vf_tip_size} - Generated {len(mod_spike_time)} spikes")
+        if len(mod_spike_time) == 0 or len(mod_fr_inst) == 0:
+            logging.warning(f"SPIKES COULD NOT BE GENERATED for VF {vf_tip_size}")
+            continue
+        if len(mod_spike_time) != len(mod_fr_inst):
+            if len(mod_fr_inst) > 1:
+                mod_fr_inst_interp = np.interp(mod_spike_time, time, mod_fr_inst)
+            else:
+                mod_fr_inst_interp = np.zeros_like(mod_spike_time)
+        else:
+            mod_fr_inst_interp = mod_fr_inst
+
+        # Plot stress traces in top subplot
+        axs[0].plot(time, stress, label=f"VF {vf_tip_size}", color=color)
+        
+        # Plot firing rates with updated smoothing logic
+        if plot_style == "points":
+            # Plot individual points without smoothing
+            axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, 
+                       color=color, label=f"VF {vf_tip_size}",
+                       marker="o", markersize=4, linestyle="none")
+        
+        elif plot_style == "smooth":
+            # First plot points with smaller markers
+            axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, 
+                       color=color, alpha=0.3,
+                       marker="o", markersize=3, linestyle="none")
+            
+            # Define the steady state region
+            steady_state_mask = ((mod_spike_time >= 1000) & (mod_spike_time <= 4000))
+            
+            # Create mask for points with actual firing during steady state
+            firing_mask = mod_fr_inst_interp > 0
+            
+            # Identify regions of no firing in steady state
+            no_firing_steady_state = steady_state_mask & ~firing_mask
+            
+            # Create smoothing for dynamic regions
+            dynamic_regions = ~steady_state_mask
+            smooth_rapid = gaussian_filter1d(mod_fr_inst_interp, sigma=3)
+            
+            # Combine based on masks
+            final_fr = mod_fr_inst_interp.copy()
+            
+            # Apply smoothing only to dynamic regions
+            final_fr[dynamic_regions] = smooth_rapid[dynamic_regions]
+            
+            # Set steady state regions with no firing to zero
+            final_fr[no_firing_steady_state] = 0
+            
+            # Add smooth transitions at boundaries
+            transition_points = np.where(np.diff(no_firing_steady_state.astype(int)) != 0)[0]
+            window_size = 5  # Size of transition window
+            
+            for tp in transition_points:
+                if tp > window_size and tp < len(final_fr) - window_size:
+                    if final_fr[tp+1] == 0:  # Transitioning to zero
+                        transition = np.linspace(final_fr[tp-window_size], 0, window_size*2)
+                        final_fr[tp-window_size:tp+window_size] = transition
+                    else:  # Transitioning from zero
+                        transition = np.linspace(0, final_fr[tp+window_size], window_size*2)
+                        final_fr[tp-window_size:tp+window_size] = transition
+            
+            # Plot the smoothed line
+            axs[1].plot(mod_spike_time, final_fr * 1e3, 
+                       color=color, label=f"VF {vf_tip_size}", 
+                       linewidth=1.5)
+    
+    # Configure axes
+    for ax in axs:
+        ax.set_xlim(left=0)
+        ax.minorticks_on()
+        ax.grid(True, which='major', linestyle='-', alpha=0.3)
+        ax.grid(True, which='minor', linestyle=':', alpha=0.2)
+    
+    # Set specific y-axis bounds
+    axs[0].set_ylim(bottom=0, top=400)  # For stress traces
+    axs[1].set_ylim(bottom=0, top=275)  # For firing rates
+    
+    # Set titles and labels
+    axs[0].set_title(f"{afferent_type} Von Frey Stress Traces")
+    axs[0].set_xlabel("Time (ms)")
+    axs[0].set_ylabel("Stress (kPa)")
+    axs[0].legend(loc="best")
+    
+    axs[1].set_title(f"{afferent_type} IFF's associated with Stress Traces")
+    axs[1].set_xlabel("Time (ms)")
+    axs[1].set_ylabel("Firing Rate (Hz)")
+    axs[1].legend(loc="best")
+    
+    plt.tight_layout()
+    return fig, axs
+
+def plot_stress_traces_only(aligned_file):
+    """
+    Plot only the stress traces from aligned stress traces CSV file.
     
     Parameters:
     -----------
     aligned_file : str
         Path to the aligned stress traces CSV file.
-    afferent_type : str, optional
-        Type of afferent to simulate ("RA" or "SA"). Default is "SA".
-    scaling_factor : float, optional
-        Scaling factor for stress values. Default is 1.0.
-    plot_style : str, optional
-        Style of the firing rate plot ("smooth" or "points"). Default is "smooth".
     """
     # Load the aligned data
-    aligned_data = pd.read_csv(aligned_file)
+    try:
+        aligned_data = pd.read_csv(aligned_file)
+    except Exception as e:
+        logging.error(f"Error loading CSV file: {str(e)}")
+        raise FileExistsError(f"Error loading CSV file: {str(e)}")
     
-    # Extract time and VF tip sizes
-    time = aligned_data['Time (ms)'].to_numpy()
-    vf_columns = [col for col in aligned_data.columns if col.startswith('Stress_')]
-    vf_tip_sizes = [float(col.split('_')[1]) for col in vf_columns]
+    # Get the time values from the first column
+    time = aligned_data.iloc[:, 0].values
     
-    # Print the time range of the data
-    logging.info(f"Time range in data: {time[0]} to {time[-1]} ms")
-    
-    # Colors from the original run_same_plot function
+    # Define colors for different traces
     colors = ['#440154', '#3b528b', '#21908c', '#5dc963', '#fde725']
     
-    # Create the figure with two subplots
-    fig, axs = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+    # Create the figure
+    fig, ax = plt.subplots(figsize=(12, 6))
     
-    # Plot each VF tip size
-    for vf_col, color in zip(vf_columns, colors):
-        vf = vf_col.split('_')[1]
-        stress = aligned_data[vf_col].values
-        
-        # Print the stress range for debugging
-        logging.info(f"VF {vf} stress range: {np.min(stress):.2f} to {np.max(stress):.2f} kPa")
-        
-        # Plot the stress trace
-        axs[0].plot(time, stress, label=f"VF {vf}", color=color)
-        
-        # Calculate simplified firing rates that cover the full time range
-        # Use a sigmoid function to model the relationship between stress and firing rate
-        # This ensures we get firing rates throughout the entire time range
-        
-        # Parameters for SA type afferents
-        if afferent_type == "SA":
-            # SA afferents have persistent firing during sustained stimuli
-            baseline = 5.0  # Baseline firing rate (Hz)
-            max_rate = 200.0  # Maximum firing rate (Hz)
-            sensitivity = 0.02  # Sensitivity to stress
-            threshold = 50.0  # Threshold for activation
-            
-            # Calculate simplified firing rates (Hz)
-            # Base rate dependent on stress level
-            base_firing_rate = baseline + max_rate * (1 / (1 + np.exp(-(stress - threshold) * sensitivity)))
-            
-            # Add response to rate of change (first derivative) - captures on/off responses
-            stress_derivative = np.gradient(stress, time)
-            derivative_component = np.abs(stress_derivative) * 0.5  # Scale factor for derivative
-            
-            # Combine components
-            firing_rate = base_firing_rate + derivative_component
-            
-            # Ensure rates are non-negative
-            firing_rate = np.maximum(firing_rate, 0)
-            
-        else:  # RA type
-            # RA afferents primarily respond to changes in stress
-            baseline = 0.0  # Baseline firing rate (Hz)
-            max_rate = 250.0  # Maximum firing rate (Hz)
-            sensitivity = 0.5  # Sensitivity to stress changes
-            
-            # Calculate firing rates based mainly on stress derivative
-            stress_derivative = np.gradient(stress, time)
-            
-            # Only positive derivatives for RA (mostly responds to increasing stress)
-            stress_derivative = np.clip(stress_derivative, 0, None)
-            
-            # Calculate firing rate
-            firing_rate = baseline + max_rate * (1 - np.exp(-sensitivity * stress_derivative))
-            
-            # Add small stress-dependent component to maintain some firing during sustained stimuli
-            stress_component = 0.02 * stress  # Small direct contribution from stress level
-            firing_rate += stress_component
-            
-            # Ensure rates are non-negative
-            firing_rate = np.maximum(firing_rate, 0)
-        
-        # Apply smoothing if needed
-        if plot_style == "smooth":
-            # Smooth the firing rates
-            firing_rate = gaussian_filter1d(firing_rate, sigma=15)
-        
-        # Create simulated spike times for the point plot option
-        if plot_style == "points":
-            # Generate spike times based on firing rate
-            spike_times = []
-            spike_rates = []
-            
-            for i in range(len(time)-1):
-                # Consider generating a spike in this time interval
-                dt = time[i+1] - time[i]
-                rate = firing_rate[i]
-                
-                # Probability of a spike in this interval
-                p_spike = rate * dt / 1000.0  # Convert ms to seconds
-                
-                if np.random.random() < p_spike and rate > 10:  # Only generate spikes for rates above 10 Hz
-                    spike_times.append(time[i])
-                    spike_rates.append(rate)
-            
-            # Plot as points
-            axs[1].plot(spike_times, spike_rates, color=color, label=f"VF {vf}",
-                      marker="o", linestyle="none")
-            
-            # Count spikes
-            logging.info(f"VF {vf}: {len(spike_times)} simulated spikes")
-            if len(spike_times) > 0:
-                logging.info(f"Spike time range: {min(spike_times):.2f} to {max(spike_times):.2f} ms")
-        else:
-            # Plot as a continuous line
-            axs[1].plot(time, firing_rate, color=color, label=f"VF {vf}", 
-                      marker="", linestyle="solid")
-            
-            # Log the rate range
-            logging.info(f"VF {vf} firing rate range: {np.min(firing_rate):.2f} to {np.max(firing_rate):.2f} Hz")
+    # Plot each stress trace
+    for i in range(1, min(len(aligned_data.columns), len(colors)+1)):
+        stress = aligned_data.iloc[:, i].values
+        label = f"VF Tip {i}" if i < len(aligned_data.columns) else ""
+        ax.plot(time, stress, label=label, color=colors[i-1])
     
-    # Configure both axes
-    for ax in axs:
-        ax.set_xlim(left=0, right=5000)  # Set x-axis to show the full range
-        ax.set_ylim(bottom=0)  # Set y-axis to start at 0
-        ax.minorticks_on()  # Enable minor ticks
-        ax.grid(True, which='major', linestyle='-', alpha=0.3)  # Add major grid lines
-        ax.grid(True, which='minor', linestyle=':', alpha=0.2)  # Add minor grid lines
+    # Set plot labels and title
+    ax.set_title("Stress Traces")
+    ax.set_xlabel("Time (ms)")
+    ax.set_ylabel("Stress (kPa)")
+    ax.legend(loc='upper right')
+    ax.grid(True, linestyle='--', alpha=0.7)
     
-    # Add titles and labels
-    axs[0].set_title(f"{afferent_type} Aligned Von Frey Stress Traces")
-    axs[0].set_ylabel("Stress (kPa)")
-    axs[0].legend(loc="best")
-    
-    axs[1].set_title(f"{afferent_type} Simplified Firing Rates")
-    axs[1].set_xlabel("Time (ms)")
-    axs[1].set_ylabel("Firing Rate (Hz)")
-    axs[1].legend(loc="best")
-    
-    # Generate output file names
-    base_name = os.path.basename(aligned_file)
-    name_parts = os.path.splitext(base_name)[0]
-    
-    # Save the figure
-    output_dir = "aligned_firing_simplified"
-    os.makedirs(output_dir, exist_ok=True)
-    
-    output_file = os.path.join(output_dir, f"{name_parts}_{afferent_type}_{plot_style}_simplified.png")
     plt.tight_layout()
-    plt.savefig(output_file)
-    
-    # Also save to Figure1 folder for consistency with original code
-    os.makedirs("Figure1", exist_ok=True)
-    plt.savefig(f"Figure1/{name_parts}_{afferent_type}_{plot_style}_simplified.png")
-    
-    logging.info(f"Figure saved to {output_file}")
-    
-    return fig, axs
+    return fig, ax
 
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Plot simplified firing rates from aligned stress traces.')
     parser.add_argument('--input_file', type=str, required=True, help='Path to the aligned stress traces CSV file')
-    parser.add_argument('--afferent_type', type=str, default='SA', choices=['SA', 'RA'], help='Type of afferent (SA or RA)')
-    parser.add_argument('--scaling_factor', type=float, default=1.0, help='Scaling factor for stress values')
-    parser.add_argument('--plot_style', type=str, default='smooth', choices=['smooth', 'points'], help='Style of the firing rate plot')
+    parser.add_argument('--afferent_type', type=str, default='RA', choices=['SA', 'RA'], help='Type of afferent (SA or RA)')
+    parser.add_argument('--plot_style', type=str, default='points', choices=['smooth', 'points'], help='Style of the firing rate plot')
+    parser.add_argument('--stress_only', action='store_true', help='Plot only stress traces without firing rates')
     
     args = parser.parse_args()
     
-    # Plot the firing rates
-    fig, axs = plot_aligned_simplified(
-        args.input_file,
-        afferent_type=args.afferent_type,
-        scaling_factor=args.scaling_factor,
-        plot_style=args.plot_style
-    )
+    # Choose which plotting function to use based on the arguments
+    if args.stress_only:
+        # Plot stress traces only
+        fig, ax = plot_stress_traces_only(args.input_file)
+    else:
+        # Plot both stress traces and firing rates
+        fig, axs = plot_aligned_simplified(
+            args.input_file,
+            afferent_type=args.afferent_type,
+            plot_style=args.plot_style
+        )
     
     # Show the plot
     plt.show()
