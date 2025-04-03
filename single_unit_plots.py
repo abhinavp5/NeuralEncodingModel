@@ -366,41 +366,79 @@ def run_single_unit_model_combined_graph(afferent_type, ramp):
 
     fig.suptitle(f"Firing Rate and Stress for Ramp Type: {ramp}")
     plt.tight_layout()
-def sa_shallow_steep_stacked(vf_tip_size, afferent_type, scaling_factor):
-        types_of_ramp = ["shallow", "steep"]
-        fig, axs = plt.subplots(2, 1, figsize=(12,8), sharex=True)
+
+def plot_parameter_comparison(afferent_type, ramp, param_name='tau1', param_values=None):
+    # Colors from darkest to lightest gray, matching the image
+    parameter_colors = ['black', '#666666', '#999999', '#CCCCCC']  # From darkest to lightest
+    vf_tip_sizes = [3.61]
+    vf_list_len = len(vf_tip_sizes)
+    LifConstants.set_resolution(1)
+
+    fig, axs = plt.subplots(2, 1, figsize=(12,8), sharex=True)
+    lmpars = lmpars_init_dict['t3f12v3final']
     
-        for ramp_idx, ramp in enumerate(types_of_ramp):
-            if ramp == ("shallow"):
-                LifConstants.set_resolution(2)
+    # Use default tau1 values if no parameter values provided
+    if param_values is None:
+        if param_name == 'tau1':
+            param_values = [100, 30, 8, 1]
+        else:
+            param_values = [1.0, 0.75, 0.5, 0.25]  # Default values for other parameters
+    
+    parameter_sets = []
+    
+    # Create parameter sets with different parameter values
+    for value in param_values:
+        params = {
+            'tau1': 8,
+            'tau2': 200,
+            'tau3': 1,
+            'tau4': np.inf,
+            'k1': 0.74,
+            'k2': 1.0,
+            'k3': 0.07,
+            'k4': 0.0312
+        }
+        # Update the specified parameter
+        params[param_name] = value
+        parameter_sets.append(params)
 
-            elif ramp == ("steep"):
-                LifConstants.set_resolution(.5)
+    # Create directory for CSV files if it doesn't exist
+    csv_dir = "spike_data"
+    if not os.path.exists(csv_dir):
+        os.makedirs(csv_dir)
 
-            
-            data = pd.read_csv(f"data/vf_unscaled/{vf_tip_size}_{ramp}.csv")
+    for vf in vf_tip_sizes:
+        try:
+            if vf == 4.56:
+                data = pd.read_csv(f"data/P3/Realistic/{vf}/{vf}_radial_stress_corr_realistic.csv")
+            else:
+                data = pd.read_csv(f"data/P4/Realistic/{vf}/{vf}_radial_stress_corr_realistic.csv")
+            logging.warning(f"Reading data for {vf}")
             time = data['Time (ms)'].to_numpy()
-            stress = scaling_factor * data[data.columns[1]].values
+            stress = data[data.columns[1]].values
+        except KeyError as e:
+            logging.warning(f"File not found for {vf} and {ramp}")
+            continue
 
-            lmpars = lmpars_init_dict['t3f12v3final']
-            if afferent_type == "RA":
-                lmpars['tau1'].value = 8
-                lmpars['tau2'].value = 200
-                lmpars['tau3'].value = 1
-                lmpars['k1'].value = 35
-                lmpars['k2'].value = 0
-                lmpars['k3'].value = 0.0
-                lmpars['k4'].value = 0
+        # Plot stress traces in black
+        axs[0].plot(time, stress, label=f"VF {vf}mm", color='black')
+
+        # Generate and plot spikes for each parameter set
+        for (params, value, color) in zip(parameter_sets, param_values, parameter_colors):
+            # Update parameters
+            for param_name, param_value in params.items():
+                lmpars[param_name].value = param_value
 
             groups = MC_GROUPS
             if afferent_type == "SA":
-                mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress, g= 0.2, h = .5)
+                mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress, g=0.2, h=0.5)
             elif afferent_type == "RA":
-                mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress, g= .2, h = 0.5)
+                mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress, g=0.4, h=1)
 
             if len(mod_spike_time) == 0 or len(mod_fr_inst) == 0:
-                logging.warning(f"SPIKES COULD NOT BE GENERATED on {vf_tip_size} and {ramp}")
+                logging.warning(f"SPIKES COULD NOT BE GENERATED for {param_name}={value}")
                 continue
+
             if len(mod_spike_time) != len(mod_fr_inst):
                 if len(mod_fr_inst) > 1:
                     mod_fr_inst_interp = np.interp(mod_spike_time, time, mod_fr_inst)
@@ -408,44 +446,72 @@ def sa_shallow_steep_stacked(vf_tip_size, afferent_type, scaling_factor):
                     mod_fr_inst_interp = np.zeros_like(mod_spike_time)
             else:
                 mod_fr_inst_interp = mod_fr_inst
-            
-            axs[0].plot(time, stress, label = f"{ramp}")
 
-            axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, label = f"{ramp}", marker = "o", linestyle = "none")
-            
-        axs[0].set_title(f"{vf_tip_size}mm {afferent_type} Von Frey Stress Traces with scaling factor = {scaling_factor}")
-        axs[0].set_xlabel("Time (ms)")
-        axs[0].set_ylabel("Stress (kPa)")
-        axs[0].legend(loc = "best")
+            # Save spike times and firing rates to CSV
+            csv_filename = f"{csv_dir}/{afferent_type}_{ramp}_vf{vf}_{param_name}_{value}.csv"
+            spike_data = pd.DataFrame({
+                'spike_time_ms': mod_spike_time,
+                'firing_rate_kHz': mod_fr_inst_interp * 1e3
+            })
+            spike_data.to_csv(csv_filename, index=False)
+            logging.warning(f"Saved spike data to {csv_filename}")
 
-        axs[1].set_title(f"{afferent_type} Steep and Shallow IFF's associated with Stress Traces")
-        axs[1].set_xlabel("Spike Time (ms)")
-        axs[1].set_ylabel("Firing Rate (kHz)")
-        axs[1].legend(loc = "best")
-        axs[1].set_xlim([0, 5000])
-        
+            # Plot spikes with different colors and continuous lines
+            param_label = param_name if param_name.startswith('tau') else f"k{param_name[-1]}"
+            axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, 
+                      color=color, label=f"{param_label} = {value}",
+                      marker='o', markersize=4, linestyle='none')
 
-        plt.tight_layout()
-        # plt.show()
+    # Configure axes
+    for ax in axs:
+        ax.set_xlim(left=0)
+        ax.minorticks_on()
 
-        plt.savefig(f"shallow_steep_same_plot/{vf_tip_size}mm_{afferent_type}_stacked_{scaling_factor}.png")
+    # Set specific y-axis bounds for each subplot
+    axs[0].set_ylim(bottom=0, top=200)  # For stress traces
+    axs[1].set_ylim(bottom=0, top=600)  # For firing rates
 
+    axs[0].set_title(f"{afferent_type} Von Frey Stress Trace ({vf_tip_sizes[0]}mm)")
+    axs[0].set_xlabel("Time (ms)")
+    axs[0].set_ylabel("Stress (kPa)")
+    axs[0].legend(loc="best")
+
+    axs[1].set_title(f"IFF for Different {param_name} Values")
+    axs[1].set_xlabel("Time (ms)")
+    axs[1].set_ylabel("IFF (Hz)")
+    axs[1].legend(loc="best")
+
+    plt.tight_layout()
+    plt.savefig(f"vf_graphs/stress_iffs_different_plot/{afferent_type}_{ramp}_{param_name}_comparison.png")
+    plt.savefig(f"Figure1/{afferent_type}_{ramp}_{param_name}_comparison.png")
+    plt.show()
 
 def main():
     parser = argparse.ArgumentParser(description='Plot single unit model results.')
     parser.add_argument('afferent_type', choices=['SA', 'RA'], help='Type of afferent (SA or RA)')
     parser.add_argument('ramp', choices=['shallow', 'out', 'steep'], help='Type of ramp (shallow, out, or steep)')
     parser.add_argument('--scaling_factor', type=float, default=1.0, help='Scaling factor for stress values (default: 1.0)')
-    parser.add_argument('--plot_style', choices=['smooth', 'points'], default='smooth', help='Plot style (smooth or points)')
+    parser.add_argument('--plot_type', choices=['single', 'parameter'], default='single', help='Plot type (single or parameter)')
+    parser.add_argument('--param_name', choices=['tau1', 'tau2', 'tau3', 'tau4', 'k1', 'k2', 'k3', 'k4'], 
+                       default='tau1', help='Parameter to vary in parameter comparison plot')
+    parser.add_argument('--param_values', type=float, nargs='+', 
+                       help='Space-separated list of values for the parameter (e.g., --param_values 100 30 8 1)')
     
     args = parser.parse_args()
     
-    run_same_plot(
-        args.afferent_type,
-        args.ramp,
-        scaling_factor=1.0,
-        plot_style=args.plot_style
-    )
+    if args.plot_type == 'single':
+        run_same_plot(
+            args.afferent_type,
+            args.ramp,
+            scaling_factor=args.scaling_factor
+        )
+    elif args.plot_type == 'parameter':
+        plot_parameter_comparison(
+            args.afferent_type,
+            args.ramp,
+            param_name=args.param_name,
+            param_values=args.param_values
+        )
 
 if __name__ == '__main__':
     main()

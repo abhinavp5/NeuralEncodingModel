@@ -350,3 +350,5 @@ cython_debug/
 .DS_Store
 __pycache__
 firing_data/
+aggregated_spatial_data.json
+aggregated_radial_data.json
