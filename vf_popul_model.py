@@ -56,14 +56,14 @@ class VF_Population_Model:
         self.h = h
 
         # Load spatial coordinate data
-        coords_file = f"data/P2/{self.density if self.density else self.vf_tip_size}/{self.vf_tip_size}_spatial_coords_corr.csv"
+        coords_file = f"data/P2/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_spatial_coords_corr_{self.density.lower()}.csv"
         coords = pd.read_csv(coords_file)
 
         self.x_coords = coords.iloc[:, 0].astype(float).tolist()
         self.y_coords = coords.iloc[:, 1].astype(float).tolist()
 
         # Load stress data
-        stress_file = f"data/P2/{self.density if self.density else self.vf_tip_size}/{self.vf_tip_size}_spatial_stress_corr.csv"
+        stress_file = f"data/P2/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_spatial_stress_corr_{self.density.lower()}.csv"
         stress_data = pd.read_csv(stress_file)
         time = stress_data['Time (ms)'].to_numpy()
 
@@ -128,45 +128,64 @@ class VF_Population_Model:
             self.g = 0.4
             self.h = 1.0
 
-        radial_stress_file = f"data/P2/{self.density if self.density else self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr.csv"
-        radial_stress = pd.read_csv(radial_stress_file)
-        radial_time = radial_stress['Time (ms)'].to_numpy()
+        radial_stress_file = f"data/P2/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr_{self.density.lower()}.csv"
+        logging.info(f"Attempting to read file: {radial_stress_file}")
+        
+        try:
+            radial_stress = pd.read_csv(radial_stress_file)
+            # Check if 'Time (ms)' column exists, if not try 'Time'
+            time_col = 'Time (ms)' if 'Time (ms)' in radial_stress.columns else 'Time'
+            radial_time = radial_stress[time_col].to_numpy()
+            
+            stress_data = {}
+            iff_data = {}
 
-        stress_data = {}
-        iff_data = {}
+            # Process each radial distance
+            for col in radial_stress.columns:
+                if col == time_col:  # Skip the time column
+                    continue
+                    
+                matches = re.findall(r'\d\.\d{2}', col)
+                if not matches:
+                    continue  # Skip if distance format is incorrect
 
-        # Process each radial distance
-        for col in radial_stress.columns[1:]:
-            matches = re.findall(r'\d\.\d{2}', col)
-            if not matches:
-                continue  # Skip if distance format is incorrect
+                distance_from_center = float(matches[0])
+                scaled_stress = radial_stress[col] * self.sf
+                stress_data[distance_from_center] = {
+                    "Time": radial_time,
+                    "Stress": scaled_stress.to_numpy()
+                }
 
-            distance_from_center = float(matches[0])
-            scaled_stress = radial_stress[col] * self.sf
-            stress_data[distance_from_center] = {
-                "Time": radial_time,
-                "Stress": scaled_stress.to_numpy()
-            }
+                # Compute spikes using model
+                mod_spike_time, mod_fr_inst = get_mod_spike(radial_time, scaled_stress, g=self.g, h=self.h)
 
-            # Compute spikes using model (placeholder function `get_mod_spike`)
-            mod_spike_time, mod_fr_inst = get_mod_spike(radial_time, scaled_stress, g=self.g, h=self.h)
+                if len(mod_spike_time) == 0:
+                    iff_data[distance_from_center] = None
+                    continue  # Skip if no spikes
 
-            if len(mod_spike_time) == 0:
-                iff_data[distance_from_center] = None
-                continue  # Skip if no spikes
+                mod_fr_inst_interp = np.interp(mod_spike_time, radial_time, mod_fr_inst) if len(mod_fr_inst) > 1 else np.zeros_like(mod_spike_time)
 
-            mod_fr_inst_interp = np.interp(mod_spike_time, radial_time, mod_fr_inst) if len(mod_fr_inst) > 1 else np.zeros_like(mod_spike_time)
+                iff_data[distance_from_center] = {
+                    'Time': stress_data[distance_from_center]["Time"].tolist(),
+                    'Stress': stress_data[distance_from_center]["Stress"].tolist(),
+                    'peak_firing_frequency': np.max(mod_fr_inst_interp),
+                    'mod_spike_time': mod_spike_time.tolist(),
+                    'entire_iff': mod_fr_inst_interp.tolist()
+                }
 
-            iff_data[distance_from_center] = {
-                'Time': stress_data[distance_from_center]["Time"].tolist(),
-                'Stress': stress_data[distance_from_center]["Stress"].tolist(),
-                'peak_firing_frequency': np.max(mod_fr_inst_interp),
-                'mod_spike_time': mod_spike_time.tolist(),
-                'entire_iff': mod_fr_inst_interp.tolist()
-            }
-
-        self.radial_stress_data = stress_data
-        self.radial_iff_data = iff_data
+            self.radial_stress_data = stress_data
+            self.radial_iff_data = iff_data
+            logging.info(f"Stored radial_stress_data with {len(stress_data)} entries")
+            logging.info(f"Keys in radial_stress_data: {list(stress_data.keys())}")
+            
+        except FileNotFoundError:
+            logging.error(f"Could not find file: {radial_stress_file}")
+            self.radial_stress_data = None
+            self.radial_iff_data = None
+        except Exception as e:
+            logging.error(f"Error processing file: {str(e)}")
+            self.radial_stress_data = None
+            self.radial_iff_data = None
 
     def get_model_results(self):
         """Returns the spatial model results."""
@@ -179,3 +198,70 @@ class VF_Population_Model:
     def get_SA_radius(self):
         """Returns the SA afferent radius."""
         return self.SA_radius
+
+    def run_single_unit_model_combined_graph(self, stress_threshold=0, plot=True):
+        """
+        Runs the single unit model and creates a combined graph of stress and firing rate.
+        
+        Parameters:
+        - stress_threshold (float): Minimum stress value to consider
+        - plot (bool): Whether to display the plot
+        """
+        if self.radial_stress_data is None:
+            logging.error("radial_stress_data is None. Please run radial_stress_vf_model first.")
+            return
+
+        # Initialize variables for plotting
+        legend = False
+        common_stress_max = 0
+        common_iff_max = 0
+
+        # Create figure and axis
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        # Process each radial distance
+        for distance, data in self.radial_stress_data.items():
+            time = data["Time"]
+            stress_values = data["Stress"]
+
+            # Skip if stress is below threshold
+            if np.max(stress_values) < stress_threshold:
+                continue
+
+            # Get firing data for this distance
+            if distance in self.radial_iff_data and self.radial_iff_data[distance] is not None:
+                firing_data = self.radial_iff_data[distance]
+                mod_spike_time = np.array(firing_data["mod_spike_time"])
+                mod_fr_inst = np.array(firing_data["entire_iff"])
+            else:
+                continue
+
+            # Interpolate firing rate if needed
+            if len(mod_spike_time) != len(mod_fr_inst):
+                if len(mod_fr_inst) > 1:
+                    mod_fr_inst_interp = np.interp(mod_spike_time, time, mod_fr_inst)
+                else:
+                    mod_fr_inst_interp = np.zeros_like(mod_spike_time)
+            else:
+                mod_fr_inst_interp = mod_fr_inst
+
+            # Update common limits for first iteration
+            if not legend:
+                common_stress_max = np.max(stress_values) + 50
+                common_iff_max = np.max(mod_fr_inst_interp * 1e3) + 50
+
+            # Plot data
+            ax.plot(time, stress_values, '--', color='gray', alpha=0.5, label='Stress' if not legend else None)
+            ax.plot(mod_spike_time, mod_fr_inst_interp * 1e3, 'o-', label=f'Distance {distance:.2f} mm')
+
+        # Set plot properties
+        ax.set_xlabel('Time (ms)')
+        ax.set_ylabel('Firing Rate (Hz) / Stress (kPa)')
+        ax.set_title(f'Radial Stress and Firing Rate for {self.aff_type} Afferent')
+        ax.legend()
+        ax.grid(True)
+
+        if plot:
+            plt.show()
+
+        return fig, ax

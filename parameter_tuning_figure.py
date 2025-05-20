@@ -45,7 +45,7 @@ steep, LIF_RESOLUTION == .5
 '''
 
 def plot_parameter_comparison(afferent_type, ramp, scaling_factor = .1):
-    colors = ['#440154', '#3b528b', '#21908c', '#5dc963', '#fde725']
+    colors = ['#4055C8', '#5E7BD8', '#6BA7E0', '#87C9A5', '#8ACD76']  # Updated colors
     vf_tip_sizes = [3.61, 4.08, 4.17, 4.31, 4.56]
     vf_list_len = len(vf_tip_sizes)
     LifConstants.set_resolution(1)
@@ -55,7 +55,7 @@ def plot_parameter_comparison(afferent_type, ramp, scaling_factor = .1):
     if not os.path.exists(csv_dir):
         os.makedirs(csv_dir)
 
-    fig, axs = plt.subplots(2, 1, figsize=(12,8), sharex=True)
+    fig, axs = plt.subplots(2, 1, figsize=(10,6), sharex=True)
     for vf, color in zip(vf_tip_sizes,colors):
         try: 
             if vf == 4.56:
@@ -124,10 +124,11 @@ def plot_parameter_comparison(afferent_type, ramp, scaling_factor = .1):
         spike_data.to_csv(csv_filename, index=False)
         logging.warning(f"Saved spike data to {csv_filename}")
 
-        # Plot stress traces
-        axs[0].plot(time, stress, label = f"{vf}", color = color)
+        # Plot stress traces as points without connecting lines
+        axs[0].plot(time, stress, label = f"{vf}", color = color, 
+                  marker="o", markersize=4, linestyle="none")
 
-        # Plot firing rates as points
+        # Plot firing rates as points without connecting lines
         axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, color=color, label=f"{vf}", 
                   marker="o", markersize=4, linestyle="none")
         
@@ -151,7 +152,11 @@ def plot_parameter_comparison(afferent_type, ramp, scaling_factor = .1):
         axs[1].legend(loc = "best")
 
     plt.tight_layout()
-    plt.savefig(f"vf_graphs/stress_iffs_different_plot/{afferent_type}_{ramp}_{scaling_factor}_points.png")
+    # Create the new directory if it doesn't exist
+    save_dir = "vf_graphs/fig3parametersensitivity"
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    plt.savefig(f"{save_dir}/{afferent_type}_{ramp}_{scaling_factor}_points.png")
     plt.savefig(f"Figure1/{afferent_type}_{ramp}_{scaling_factor}_points.png")
     plt.show()
 
@@ -167,9 +172,13 @@ def main():
     
     # Add option to run parameter comparison
     if args.afferent_type == 'RA' and args.ramp == 'out':
-        plot_parameter_comparison()
+        plot_parameter_comparison(
+            args.afferent_type,
+            args.ramp,
+            scaling_factor=1.0
+        )
     else:
-        run_same_plot(
+        plot_parameter_comparison(
             args.afferent_type,
             args.ramp,
             scaling_factor=1.0

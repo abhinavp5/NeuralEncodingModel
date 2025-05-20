@@ -8,9 +8,8 @@ This module contains functions for running the LIF model.
 """
 
 import numpy as np
-from model_constants import (MC_GROUPS, LIF_PARAMS, LifConstants, DURATION,
-                             REFRACTORY_PERIOD)
-
+import logging
+from model_constants import (LIF_PARAMS, LifConstants, DURATION, REFRACTORY_PERIOD)
 
 # %% Calculate du/dt
 def dudt(pot, current):
@@ -57,6 +56,7 @@ def runge_kutta(current, start_time):
         [0] = timepoint when voltage at one heminode exceeds the threshold.
         [1] = largest voltage among all heminodes at the time.
     """
+    from model_constants import MC_GROUPS
     threshold = LIF_PARAMS[0]
     mc_size = MC_GROUPS.shape[0]
     h = LifConstants.LIF_RESOLUTION
@@ -71,22 +71,29 @@ def runge_kutta(current, start_time):
     k3 = 0.
     k4 = 0.
     output = np.zeros(2)
+    
+    iteration_count = 0
     while temp_time <= time_span-h:
         if current_index + 1 >= len(current):
             break
+            
         for i in range(mc_size):
             mid_current = 0.5 * (current[current_index, i] +
-                                 current[current_index + 1 , i]) # current_index + 1
+                                 current[current_index + 1 , i])
             k1 = dudt(each_pot[i], current[current_index, i])
             k2 = dudt(each_pot[i] + 0.5*h*k1, mid_current)
             k3 = dudt(each_pot[i] + 0.5*h*k2, mid_current)
-            k4 = dudt(each_pot[i] + h*k3, current[current_index + 1 , i]) # current_index + 1
+            k4 = dudt(each_pot[i] + h*k3, current[current_index + 1 , i])
             each_pot[i] = each_pot[i] + (h * (k1 + 2*k2 + 2*k3 + k4) / 6)
+            
         max_pot = np.max(each_pot)
         if max_pot > threshold:
             break
+            
         temp_time = temp_time + h
-        current_index = current_index + 1  # current_index + 1
+        current_index = current_index + 1
+        iteration_count += 1
+        
     output[0] = start_time + temp_time
     output[1] = max_pot
     return output
@@ -116,6 +123,8 @@ def get_spikes(current):
 
     spike_time = []
     larger_time = 0.0
+    iteration_count = 0
+    
     while ini_time <= DURATION:
         integration_start = ini_time
         timestamp_finalpot = runge_kutta(current[0:trace_length, :],
@@ -124,8 +133,9 @@ def get_spikes(current):
                               ini_time + REFRACTORY_PERIOD])
         if timestamp_finalpot[1] > threshold:
             spike_time.append(larger_time)
+            
         ini_time = LifConstants.LIF_RESOLUTION + larger_time
-
+        iteration_count += 1
 
     return spike_time
 

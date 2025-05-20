@@ -686,6 +686,8 @@ def plot_firing_rate_only(afferent_type, ramp):
     plt.tight_layout()
     plt.show()
 
+def plot_
+
 def main():
     parser = argparse.ArgumentParser(description='Plot single unit model results.')
     parser.add_argument('afferent_type', choices=['SA', 'RA'], help='Type of afferent (SA or RA)')
