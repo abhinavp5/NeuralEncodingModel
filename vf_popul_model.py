@@ -197,35 +197,37 @@ class VF_Population_Model:
         return model_results
 
     def radial_stress_vf_model(self, g=0.2, h=0.5):
-        """
-        Computes the stress model based on radial distances from the center.
-
-        Parameters:
-        - g (float): Model parameter for spike generation.
-        - h (float): Model parameter for spike generation.
-        """
+        """Run the radial stress model for the current VF tip."""
+        print(f"\nDEBUG: Starting radial_stress_vf_model for tip {self.vf_tip_size}")
+        print(f"DEBUG: Using g={g}, h={h}")
+        
         self.g = g
         self.h = h
-
-        # Load radial stress data
-        if self.density == "Realistic":
-            if self.vf_tip_size == 4.56:
-                radial_stress_file = f"data/P3/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr_{self.density.lower()}.csv"
-            else:
-                radial_stress_file = f"data/P4/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr_{self.density.lower()}.csv"
-        else:
-            radial_stress_file = f"data/P2/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr_{self.density.lower()}.csv"
-        
-        logging.info(f"Attempting to read file: {radial_stress_file}")
         
         try:
+            # Read the stress data
+            print(f"DEBUG: Attempting to read stress data for tip {self.vf_tip_size}")
+            if self.density == "Realistic":
+                if self.vf_tip_size == 4.56:
+                    radial_stress_file = f"data/P3/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr_{self.density.lower()}.csv"
+                else:
+                    radial_stress_file = f"data/P4/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr_{self.density.lower()}.csv"
+            else:
+                radial_stress_file = f"data/P2/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr_{self.density.lower()}.csv"
+            
+            print(f"DEBUG: Reading file: {radial_stress_file}")
+            
             radial_stress = pd.read_csv(radial_stress_file)
             time_col = 'Time (ms)' if 'Time (ms)' in radial_stress.columns else 'Time'
             radial_time = radial_stress[time_col].to_numpy()
             
-            stress_data = {}
-            iff_data = {}
-
+            # Initialize model results
+            self.model_results = {
+                'spike_timings': [],
+                'x_position': [],
+                'y_position': []
+            }
+            
             # Process each radial distance
             for col in radial_stress.columns:
                 if col == time_col:
@@ -237,54 +239,23 @@ class VF_Population_Model:
 
                 distance_from_center = float(matches[0])
                 scaled_stress = radial_stress[col] * self.sf
-                stress_data[distance_from_center] = {
-                    "Time": radial_time,
-                    "Stress": scaled_stress.to_numpy()
-                }
-
+                
                 # Compute spikes using model
                 lmpars = self.params
                 groups = MC_GROUPS
                 mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, radial_time, scaled_stress, g=self.g, h=self.h)
 
-                if len(mod_spike_time) == 0:
-                    iff_data[distance_from_center] = None
-                    continue
-
-                if len(mod_spike_time) != len(mod_fr_inst):
-                    if len(mod_fr_inst) > 1:
-                        mod_fr_inst_interp = np.interp(mod_spike_time, radial_time, mod_fr_inst)
-                    else:
-                        mod_fr_inst_interp = np.zeros_like(mod_spike_time)
-                else:
-                    mod_fr_inst_interp = mod_fr_inst
-
-                features, _ = pop_model(mod_spike_time, mod_fr_inst_interp)
-
-                iff_data[distance_from_center] = {
-                    'afferent_type': self.aff_type,
-                    'num_of_spikes': len(mod_spike_time),
-                    'mean_firing_frequency': features["Average Firing Rate"],
-                    'peak_firing_frequency': np.max(mod_fr_inst_interp),
-                    'first_spike_time': mod_spike_time[0] if len(mod_spike_time) > 0 else None,
-                    'last_spike_time': mod_spike_time[-1] if len(mod_spike_time) > 0 else None,
-                    'Time': stress_data[distance_from_center]["Time"].tolist(),
-                    'Stress': stress_data[distance_from_center]["Stress"].tolist(),
-                    'mod_spike_time': mod_spike_time.tolist(),
-                    'entire_iff': mod_fr_inst_interp.tolist()
-                }
-
-            self.radial_stress_data = stress_data
-            self.radial_iff_data = iff_data
+                if len(mod_spike_time) > 0:
+                    self.model_results['spike_timings'].append(mod_spike_time)
+                    self.model_results['x_position'].append(distance_from_center)
+                    self.model_results['y_position'].append(0)  # Using 0 for y-position in radial model
             
-        except FileNotFoundError:
-            logging.error(f"Could not find file: {radial_stress_file}")
-            self.radial_stress_data = None
-            self.radial_iff_data = None
+            print(f"DEBUG: Generated {len(self.model_results['spike_timings'])} spike timing sets")
+            return self.model_results
+            
         except Exception as e:
-            logging.error(f"Error processing file: {str(e)}")
-            self.radial_stress_data = None
-            self.radial_iff_data = None
+            print(f"DEBUG: Error in radial_stress_vf_model: {str(e)}")
+            return None
 
     def plot_spatial_coords(self, plot=False):
         """
@@ -466,8 +437,10 @@ class VF_Population_Model:
         return receptive_field_size
 
     def get_model_results(self):
-        """Returns the spatial model results."""
-        return self.results
+        """Returns the model results."""
+        if hasattr(self, 'model_results'):
+            return self.model_results
+        return None
 
     def get_radial_iff_data(self):
         """Returns the radial stress and firing frequency data."""
@@ -476,3 +449,70 @@ class VF_Population_Model:
     def get_SA_radius(self):
         """Returns the SA afferent radius."""
         return self.SA_radius
+
+    @staticmethod
+    def cumulative_afferent_over_time(afferent_type, plot_cumulative=True, vf_tip_sizes=[3.61, 4.17, 4.56], colors=None, density=None):
+        """
+        Plot or return the cumulative (or instantaneous) number of afferents recruited over time for different VF tip sizes.
+        Parameters:
+            afferent_type (str): 'SA' or 'RA'
+            plot_cumulative (bool): If True, plot cumulative; else, plot instantaneous
+            vf_tip_sizes (list): List of tip sizes to analyze
+            colors (list): List of colors for plotting (optional)
+            density (str): Density string (optional)
+        Returns:
+            dict: Mapping vf_tip_size to cumulative afferent data
+        """
+        if colors is None:
+            colors = ['#ffffcc', '#41b6c4', '#253494']  # Default to match new COLOR_MAP
+        labels = [f"Tip Size {size}" for size in vf_tip_sizes]
+        plt.figure(figsize=(10, 6))
+        vf_cumulative_data = {}
+        for vf_tip, color, label in zip(vf_tip_sizes, colors, labels):
+            print(f"VF_TIP: {vf_tip}")
+            # Initialize the VF model for each tip size
+            vf_model = VF_Population_Model(vf_tip, afferent_type, scaling_factor=1.0, density=density)
+            vf_model.radial_stress_vf_model(g=.2 if afferent_type=="SA" else .4, h=.5 if afferent_type=="SA" else .1)
+            model_results = vf_model.spatial_stress_vf_model()
+            first_spike_times = []
+            spike_timings = model_results["spike_timings"]
+            for st in spike_timings:
+                if len(st) > 1:
+                    first_spike_times.append(st[1])
+            # Sort and zip for plotting
+            zipped = list(zip(first_spike_times, model_results["x_position"], model_results["y_position"]))
+            if not zipped:
+                continue
+            sorted_zipped = sorted(zipped, key=lambda x: x[0])
+            sorted_spike_times, _, _ = zip(*sorted_zipped)
+            # Count afferents recruited at each spike time
+            time_and_afferents_triggered = {}
+            for spike_time in sorted_spike_times:
+                if spike_time in time_and_afferents_triggered:
+                    time_and_afferents_triggered[spike_time] += 1
+                else:
+                    time_and_afferents_triggered[spike_time] = 1
+            # Sort by spike time
+            spike_times_sorted = sorted(time_and_afferents_triggered.keys())
+            time_and_afferent_keys_sorted = {time_stamp: time_and_afferents_triggered[time_stamp] for time_stamp in spike_times_sorted}
+            # Cumulative sum
+            cumulative_afferents = {}
+            cumulative_counter = 0
+            for time in time_and_afferent_keys_sorted.keys():
+                cumulative_counter += time_and_afferents_triggered[time]
+                cumulative_afferents[time] = cumulative_counter
+            # Plot
+            if plot_cumulative:
+                plt.plot(list(cumulative_afferents.keys()), list(cumulative_afferents.values()), marker='o', color=color, label=label)
+            else:
+                plt.scatter(list(time_and_afferents_triggered.keys()), list(time_and_afferents_triggered.values()), marker='o', color=color, label=label)
+            vf_cumulative_data[vf_tip] = cumulative_afferents
+        # Add labels, legend, and grid
+        plt.xlabel("Time (ms)", fontsize=12)
+        plt.ylabel("Number of Afferents Recruited", fontsize=12)
+        plt.grid(alpha=0.5)
+        plt.legend(title="VF Tip Sizes")
+        plt.tight_layout()
+        plt.title(f"Cumulation of {afferent_type} Afferents")
+        plt.savefig(f"vf_graphs/furthest_difference_before_firing/cumu_afferents_time/{density if density else ''}_{afferent_type}_cumulative_afferents.png", bbox_inches='tight')
+        return vf_cumulative_data

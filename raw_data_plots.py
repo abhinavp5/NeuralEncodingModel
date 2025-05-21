@@ -51,6 +51,48 @@ logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
 # Set up parameters for plotting
 plt.rcParams["font.family"] = "Arial"
 plt.rcParams["font.size"] = 20  # Very big font
+plt.rcParams["text.color"] = "#666666"  # Light gray text
+plt.rcParams["axes.labelcolor"] = "#666666"  # Light gray axis labels
+plt.rcParams["xtick.color"] = "#666666"  # Light gray tick labels
+plt.rcParams["ytick.color"] = "#666666"  # Light gray tick labels
+plt.rcParams["axes.edgecolor"] = "#666666"  # Light gray axis lines
+
+# Font sizes for different elements
+plt.rcParams["axes.labelsize"] = 28  # Size of axis labels
+plt.rcParams["axes.titlesize"] = 28  # Size of plot titles
+plt.rcParams["xtick.labelsize"] = 20  # Size of x-axis tick labels
+plt.rcParams["ytick.labelsize"] = 20  # Size of y-axis tick labels
+plt.rcParams["legend.fontsize"] = 20  # Size of legend text
+
+# Global figure layout parameters
+FIGURE_PARAMS = {
+    'figsize': (14, 6),
+    'left': 0.098,
+    'right': 0.95,
+    'top': 0.937,
+    'bottom': 0.097
+}
+
+# Global color scheme
+COLOR_MAP = {
+    3.61: '#ffffcc',
+    4.08: '#a1dab4',
+    4.31: '#2c7fb8',
+    4.56: '#253494',
+}
+
+# Function to style axes consistently
+def style_axes(ax):
+    """Apply consistent styling to axes"""
+    # Remove top and right spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    # Set remaining spines to light gray
+    ax.spines['left'].set_color('#666666')
+    ax.spines['bottom'].set_color('#666666')
+    # Set grid to light gray
+    ax.grid(True, linestyle='--', alpha=0.3, color='#666666')
+    return ax
 
 #Global Variables
 lmpars_init_dict = {}
@@ -89,35 +131,25 @@ def plot_raw_data(afferent_type):
     # Define the von Frey filament sizes
     vf_sizes = [3.61, 4.08, 4.31, 4.56]
     
-    # Define colors for different von Frey sizes (in the same order as vf_sizes)
-    colors = ['#3D2674', '#6677FA', '#FF9047', '#92CA68']
-    
-    # Define figure parameters to match single_unit_plots.py
-    fig_params = {
-        'figsize': (14, 6),
-        'left': 0.098,
-        'right': 0.95,
-        'top': 0.937,
-        'bottom': 0.097
-    }
-    
     # --- Firing Frequency Plot ---
-    fig = plt.figure(figsize=(14, 6))
+    fig = plt.figure(figsize=FIGURE_PARAMS['figsize'])
     gs = fig.add_gridspec(1, 1,
-                         left=0.098,
-                         right=0.95,
-                         top=0.937,
-                         bottom=0.097)
+                         left=FIGURE_PARAMS['left'],
+                         right=FIGURE_PARAMS['right'],
+                         top=FIGURE_PARAMS['top'],
+                         bottom=FIGURE_PARAMS['bottom'])
     ax = fig.add_subplot(gs[0])
+    ax = style_axes(ax)
     
     # --- Stress Plot ---
-    fig_stress = plt.figure(figsize=fig_params['figsize'])
+    fig_stress = plt.figure(figsize=FIGURE_PARAMS['figsize'])
     gs_stress = fig_stress.add_gridspec(1, 1,
-                         left=fig_params['left'],
-                         right=fig_params['right'],
-                         top=fig_params['top'],
-                         bottom=fig_params['bottom'])
+                         left=FIGURE_PARAMS['left'],
+                         right=FIGURE_PARAMS['right'],
+                         top=FIGURE_PARAMS['top'],
+                         bottom=FIGURE_PARAMS['bottom'])
     ax_stress = fig_stress.add_subplot(gs_stress[0])
+    ax_stress = style_axes(ax_stress)
     
     # Set x and y limits for stress plot
     ax_stress.set_xlim(0, 5000)
@@ -138,8 +170,8 @@ def plot_raw_data(afferent_type):
             lower_stress = data["Lower (kPa)"].to_numpy()
             
             # --- Stress Plot ---
-            ax_stress.fill_between(time, lower_stress, upper_stress, color=colors[i], alpha=0.2)
-            ax_stress.plot(time, avg_stress, color=colors[i], linewidth=2, label=f'{vf_size}')
+            ax_stress.fill_between(time, lower_stress, upper_stress, color=COLOR_MAP[vf_size], alpha=0.2)
+            ax_stress.plot(time, avg_stress, color=COLOR_MAP[vf_size], linewidth=2, label=f'{vf_size}')
 
             lmpars = lmpars_init_dict['t3f12v3final']
             # Set parameters based on afferent type
@@ -175,11 +207,10 @@ def plot_raw_data(afferent_type):
             lower_rates_smooth = np.interp(smooth_time, lower_time, lower_rates)
             
             # --- Firing Frequency Plot ---
-            ax.fill_between(smooth_time, lower_rates_smooth, upper_rates_smooth, color=colors[i], alpha=0.2)
-            ax.plot(smooth_time, upper_rates_smooth, color=colors[i], linewidth=1, alpha=0.5)
-            ax.plot(smooth_time, avg_rates_smooth, color=colors[i], linewidth=1.5, label=f'{vf_size}mm')
-            ax.plot(smooth_time, lower_rates_smooth, color=colors[i], linewidth=1, alpha=0.5)
-            
+            ax.fill_between(smooth_time, lower_rates_smooth, upper_rates_smooth, color=COLOR_MAP[vf_size], alpha=0.2)
+            ax.plot(smooth_time, upper_rates_smooth, color=COLOR_MAP[vf_size], linewidth=1, alpha=0.5)
+            ax.plot(smooth_time, avg_rates_smooth, color=COLOR_MAP[vf_size], linewidth=1.5, label=f'{vf_size}mm')
+            ax.plot(smooth_time, lower_rates_smooth, color=COLOR_MAP[vf_size], linewidth=1, alpha=0.5)
             
         except Exception as e:
             print(f"Error processing von Frey size {vf_size}: {str(e)}")
@@ -189,8 +220,9 @@ def plot_raw_data(afferent_type):
     # --- Firing Frequency Plot Formatting ---
     ax.set_xlim(0,5000)
     ax.set_ylim(0,275)
-    ax.spines['top'].set_visible(True)
-    ax.spines['right'].set_visible(True)
+    ax.set_xlabel('Time (ms)', fontsize=28)
+    ax.set_ylabel('Firing Rate (Hz)', fontsize=28)
+    ax.legend(loc='best', frameon=False)
     os.makedirs('raw_data_plots', exist_ok=True)
     plt.savefig(f'raw_data_plots/raw_firing_frequencies_{afferent_type}.png', 
                 dpi=300, bbox_inches='tight')
@@ -200,99 +232,71 @@ def plot_raw_data(afferent_type):
     # --- Stress Plot Formatting ---
     ax_stress.set_xlim(0,5000)
     ax_stress.set_ylim(0,400)
-    ax_stress.set_xlabel('Time (ms)', fontsize=14)
-    ax_stress.set_ylabel('Stress (kPa)', fontsize=14)
-    ax_stress.spines['top'].set_visible(True)
-    ax_stress.spines['right'].set_visible(True)
+    ax_stress.set_xlabel('Time (ms)', fontsize=28)
+    ax_stress.set_ylabel('Stress (kPa)', fontsize=28)
+    ax_stress.legend(loc='best', frameon=False)
     plt.savefig(f'raw_data_plots/raw_stress_traces_{afferent_type}.png', 
                 dpi=300, bbox_inches='tight')
     plt.show()
     plt.close()
 
-'''
-    # --- Median Firing Rate Plot for SA ---
-    fig_SA = plt.figure(figsize=fig_params['figsize'])
-    gs_SA = fig_SA.add_gridspec(1, 1,
-                         left=fig_params['left'],
-                         right=fig_params['right'],
-                         top=fig_params['top'],
-                         bottom=fig_params['bottom'])
-    ax_SA = fig_SA.add_subplot(gs_SA[0])
+    # --- Median Firing Rate Plot ---
+    fig_median = plt.figure(figsize=FIGURE_PARAMS['figsize'])
+    gs_median = fig_median.add_gridspec(1, 1,
+                         left=FIGURE_PARAMS['left'],
+                         right=FIGURE_PARAMS['right'],
+                         top=FIGURE_PARAMS['top'],
+                         bottom=FIGURE_PARAMS['bottom'])
+    ax_median = fig_median.add_subplot(gs_median[0])
+    ax_median = style_axes(ax_median)
+
     for i, vf_size in enumerate(vf_sizes):
         try:
             data = pd.read_csv(f"aggregated_data/{vf_size}_raw_agg_stress.csv")
             time = data["Time (ms)"].to_numpy()
             avg_stress = data["Avg stress (kPa)"].to_numpy()
             lmpars = lmpars_init_dict['t3f12v3final']
-            # SA parameters
-            lmpars['tau1'].value = 8
-            lmpars['tau2'].value = 200
-            lmpars['tau3'].value = 1744.6
-            lmpars['tau4'].value = np.inf
-            lmpars['k1'].value = 0.74
-            lmpars['k2'].value = 1.0
-            lmpars['k3'].value = 0.07
-            lmpars['k4'].value = 0.0312
-            g, h = 0.2, 0.5
+            
+            # Set parameters based on afferent type
+            if afferent_type == "RA":
+                lmpars['tau1'].value = 2.5
+                lmpars['tau2'].value = 200
+                lmpars['tau3'].value = 1
+                lmpars['k1'].value = 35
+                lmpars['k2'].value = 0
+                lmpars['k3'].value = 0.0
+                lmpars['k4'].value = 0
+                g, h = 0.4, 1.0
+            else:  # SA
+                lmpars['tau1'].value = 8
+                lmpars['tau2'].value = 200
+                lmpars['tau3'].value = 1744.6
+                lmpars['tau4'].value = np.inf
+                lmpars['k1'].value = 0.74
+                lmpars['k2'].value = 1.0
+                lmpars['k3'].value = 0.07
+                lmpars['k4'].value = 0.0312
+                g, h = 0.2, 0.5
+
             median_time, median_rates = calculate_firing_rates(time, avg_stress, lmpars, g, h)
             smooth_time = np.linspace(0, 5000, 5000)
             median_rates_smooth = np.interp(smooth_time, median_time, median_rates)
-            ax_SA.plot(smooth_time, median_rates_smooth, color=colors[i], marker='o', linestyle='none', markersize=4, label=f'{vf_size}')
+            ax_median.plot(smooth_time, median_rates_smooth, color=COLOR_MAP[vf_size], 
+                          marker='o', linestyle='none', markersize=4, label=f'{vf_size}mm')
         except Exception as e:
-            print(f"Error processing SA median for von Frey size {vf_size}: {str(e)}")
+            print(f"Error processing median for von Frey size {vf_size}: {str(e)}")
             continue
-    ax_SA.set_xlim(0, 5000)
-    ax_SA.set_ylim(0, 225)
-    ax_SA.set_xlabel('Time (ms)', fontsize=14)
-    ax_SA.set_ylabel('Firing Rate (Hz)', fontsize=14)
-    ax_SA.legend(loc='best', frameon=False)
-    ax_SA.spines['top'].set_visible(True)
-    ax_SA.spines['right'].set_visible(True)
-    plt.savefig('raw_data_plots/median_firing_SA.png', dpi=300, bbox_inches='tight')
+
+    ax_median.set_xlim(0, 5000)
+    ax_median.set_ylim(0, 300 if afferent_type == "RA" else 225)
+    ax_median.set_xlabel('Time (ms)', fontsize=28)
+    ax_median.set_ylabel('Firing Rate (Hz)', fontsize=28)
+    ax_median.legend(loc='best', frameon=False)
+    plt.savefig(f'raw_data_plots/median_firing_{afferent_type}.png', 
+                dpi=300, bbox_inches='tight')
     plt.show()
     plt.close()
 
-    # --- Median Firing Rate Plot for RA ---
-    fig_RA = plt.figure(figsize=fig_params['figsize'])
-    gs_RA = fig_RA.add_gridspec(1, 1,
-                         left=fig_params['left'],
-                         right=fig_params['right'],
-                         top=fig_params['top'],
-                         bottom=fig_params['bottom'])
-    ax_RA = fig_RA.add_subplot(gs_RA[0])
-    for i, vf_size in enumerate(vf_sizes):
-        try:
-            data = pd.read_csv(f"aggregated_data/{vf_size}_raw_agg_stress.csv")
-            time = data["Time (ms)"].to_numpy()
-            avg_stress = data["Avg stress (kPa)"].to_numpy()
-            lmpars = lmpars_init_dict['t3f12v3final']
-            # RA parameters
-            lmpars['tau1'].value = 2.5
-            lmpars['tau2'].value = 200
-            lmpars['tau3'].value = 1
-            lmpars['k1'].value = 35
-            lmpars['k2'].value = 0
-            lmpars['k3'].value = 0.0
-            lmpars['k4'].value = 0
-            g, h = 0.4, 1.0
-            median_time, median_rates = calculate_firing_rates(time, avg_stress, lmpars, g, h)
-            smooth_time = np.linspace(0, 5000, 5000)
-            median_rates_smooth = np.interp(smooth_time, median_time, median_rates)
-            ax_RA.plot(smooth_time, median_rates_smooth, color=colors[i], marker='o', linestyle='none', markersize=4, label=f'{vf_size}')
-        except Exception as e:
-            print(f"Error processing RA median for von Frey size {vf_size}: {str(e)}")
-            continue
-    ax_RA.set_xlim(0, 5000)
-    ax_RA.set_ylim(0, 300)
-    ax_RA.set_xlabel('Time (ms)', fontsize=14)
-    ax_RA.set_ylabel('Firing Rate (Hz)', fontsize=14)
-    ax_RA.legend(loc='best', frameon=False)
-    ax_RA.spines['top'].set_visible(True)
-    ax_RA.spines['right'].set_visible(True)
-    plt.savefig('raw_data_plots/median_firing_RA.png', dpi=300, bbox_inches='tight')
-    plt.show()
-    plt.close()
-'''
 def main():
     parser = argparse.ArgumentParser(description='Plot raw firing frequency data calculated from stress traces')
     parser.add_argument('--afferent_type', type=str, required=True, 

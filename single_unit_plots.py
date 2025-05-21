@@ -428,6 +428,12 @@ def plot_parameter_comparison(afferent_type, ramp, param_name='tau1', param_valu
         tau1_values = [1.0, 1.5, 2.0, 2.5]
         k1_values = [10, 20, 30, 40]  # a parameter for RA
 
+    if param_values is None:
+        param_values = default_param_sets.get(afferent_type, {}).get(param_name)
+        if param_values is None:
+            logging.warning(f"No parameter values found for {param_name} and {afferent_type}")
+            return
+
     for vf in vf_tip_sizes:
         try:
             if vf == 4.56:
@@ -793,11 +799,11 @@ def parameterVsForce(afferent_type, param_name, param_set=None, density="Realist
     }
     
     # Use provided param_set or default values
-    param_values = param_set if param_set is not None else default_param_sets.get(afferent_type, {}).get(param_name)
-    
-    if param_values is None:
-        logging.warning(f"No parameter values found for {param_name} and {afferent_type}")
-        return
+    if param_set is None:
+        param_set = default_param_sets.get(afferent_type, {}).get(param_name)
+        if param_set is None:
+            logging.warning(f"No parameter values found for {param_name} and {afferent_type}")
+            return
 
     # Force mappings for each VF tip size
     force_mappings = {
@@ -822,7 +828,7 @@ def parameterVsForce(afferent_type, param_name, param_set=None, density="Realist
     ax = style_axes(ax)  # Apply consistent styling
 
     # For each parameter value, run the model and plot
-    for idx, param_value in enumerate(param_values):
+    for idx, param_value in enumerate(param_set):
         forces = []
         rf_sizes = []
         vf_colors = []
@@ -849,8 +855,6 @@ def parameterVsForce(afferent_type, param_name, param_set=None, density="Realist
             
         # Set the varying parameter value
         base_params[param_name].value = param_value
-
-
 
         if param_name == "k2":
             param_name_label = "b"
@@ -883,17 +887,177 @@ def parameterVsForce(afferent_type, param_name, param_set=None, density="Realist
     ax.set_title(f'{afferent_type} Afferent RF Size vs Force Varying {param_name_label}', fontsize=24)
     ax.legend()
     
-    # Save the plot
+    # Dynamically set y-limits before saving/showing
+    y_values = []
+    for line in ax.get_lines():
+        y_values.extend(line.get_ydata())
+    if y_values:
+        min_y = min(y_values)
+        max_y = max(y_values)
+        margin = (max_y - min_y) * 0.1 if max_y > min_y else 1
+        ax.set_ylim(min_y - margin, max_y + margin)
+
+    # Create directory if it doesn't exist
     os.makedirs('figure4', exist_ok=True)
     plt.savefig(f'figure4/{afferent_type}_rf_size_vs_force_param_{param_name}.png', dpi=300, bbox_inches='tight')
     plt.show()
+
+def populationParameterTuningOverTime(afferent_type, param_name, param_set=None, vf_tip_sizes=[3.61, 4.08, 4.17, 4.31, 4.56], density="Realistic"):
+    """
+    Plot the population parameter tuning over time for a given parameter.
+    """
+    print(f"\nDEBUG: Starting populationParameterTuningOverTime for {afferent_type} with param {param_name}")
+    
+    # Define default parameter values based on afferent type and parameter
+    default_param_sets = {
+        "SA": {
+            "tau1": [1, 8, 100],
+            "tau2": [100, 200, 500],
+            "k2": [1, 3, 16],
+        },
+        "RA": {
+            "tau1": [1.0, 2.5, 10],
+            "k1": [10,35,50]
+        }
+    }
+
+    parameter_colors = ['#000000', '#666666', '#BBBBBB'] #only for 3 colors
+    if param_name == "k2":
+        param_name_label = "b"
+    elif param_name == "k1":
+        param_name_label = "a"
+    elif param_name == "tau1":
+        param_name_label = "τRI"
+    elif param_name == "tau2":
+        param_name_label = "τSI"
+        
+    # Use provided param_set or default values
+    if param_set is None:
+        param_set = default_param_sets.get(afferent_type, {}).get(param_name)
+        if param_set is None:
+            logging.warning(f"No parameter values found for {param_name} and {afferent_type}")
+            return
+    
+    print(f"DEBUG: Using parameter set: {param_set}")
+    
+    for vf_tip in vf_tip_sizes:
+        print(f"\nDEBUG: Processing vf_tip: {vf_tip}")
+        fig = plt.figure(figsize=FIGURE_PARAMS['figsize'])
+        gs = fig.add_gridspec(1, 1,
+                              left=FIGURE_PARAMS['left'],
+                              right=FIGURE_PARAMS['right'],
+                              top=FIGURE_PARAMS['top'],
+                              bottom=FIGURE_PARAMS['bottom'])
+        ax = gs.subplots()
+        ax = style_axes(ax)
+        
+        for color, pv in zip(parameter_colors, param_set):
+            print(f"DEBUG: Processing parameter value: {pv}")
+            # Create base parameters for this afferent type
+            base_params = Parameters()
+            if afferent_type == "SA":
+                base_params.add('tau1', value=8, vary=False)
+                base_params.add('tau2', value=200, vary=False)
+                base_params.add('tau3', value=1744.6, vary=False)
+                base_params.add('tau4', value=np.inf, vary=False)
+                base_params.add('k1', value=0.74, vary=False)
+                base_params.add('k2', value=1.0, vary=False)
+                base_params.add('k3', value=0.07, vary=False)
+                base_params.add('k4', value=0.0312, vary=False)
+            else:
+                base_params.add('tau1', value=2.5, vary=False)
+                base_params.add('tau2', value=200, vary=False)
+                base_params.add('tau3', value=1, vary=False)
+                base_params.add('tau4', value=np.inf, vary=False)
+                base_params.add('k1', value=35, vary=False)
+                base_params.add('k2', value=0, vary=False)
+                base_params.add('k3', value=0.0, vary=False)
+                base_params.add('k4', value=0, vary=False)
+            
+            # Set the varying parameter value
+            base_params[param_name].value = pv
+            print(f"DEBUG: Set {param_name} to {pv}")
+
+            vf_model = VF_Population_Model(vf_tip, afferent_type, scaling_factor=1.0, density=density, params=base_params)
+            vf_model.radial_stress_vf_model(g=.2 if afferent_type=="SA" else .4, h=.5 if afferent_type=="SA" else .1)
+            model_results = vf_model.get_model_results()
+            
+            if model_results is None:
+                print(f"DEBUG: No model results for vf_tip={vf_tip}, param_value={pv}")
+                continue
+                
+            print(f"DEBUG: Got model results for vf_tip={vf_tip}, param_value={pv}")
+            print(f"DEBUG: Number of spike timings: {len(model_results['spike_timings'])}")
+            
+            first_mod_spike_times = []
+            spike_timings = model_results['spike_timings']
+            for st in spike_timings:
+                if len(st) > 1:
+                    first_mod_spike_times.append(st[1])
+            
+            print(f"DEBUG: Number of first spike times: {len(first_mod_spike_times)}")
+            
+            zipped = list(zip(first_mod_spike_times, model_results["x_position"], model_results["y_position"]))
+            if not zipped:
+                print(f"DEBUG: No zipped data for vf_tip={vf_tip}, param_value={pv}")
+                continue
+
+            sorted_zipped = sorted(zipped, key=lambda x: x[0])
+            sorted_spike_times, _, _ = zip(*sorted_zipped)
+            print(f"DEBUG: Number of sorted spike times: {len(sorted_spike_times)}")
+
+            #Counting afferentes recruited over time
+            time_and_afferents_triggered = {}
+            for spike_time in sorted_spike_times:
+                if spike_time in time_and_afferents_triggered:
+                    time_and_afferents_triggered[spike_time] += 1
+                else:
+                    time_and_afferents_triggered[spike_time] = 1
+                    
+            print(f"DEBUG: Number of unique spike times: {len(time_and_afferents_triggered)}")
+            
+            # Sort by spike time
+            spike_times_sorted = sorted(time_and_afferents_triggered.keys())
+            time_and_afferent_keys_sorted = {time_stamp: time_and_afferents_triggered[time_stamp] for time_stamp in spike_times_sorted}
+            
+            # Cumulative sum
+            cumulative_afferents = {}
+            cumulative_counter = 0
+            for time in time_and_afferent_keys_sorted.keys():
+                cumulative_counter += time_and_afferents_triggered[time]
+                cumulative_afferents[time] = cumulative_counter
+            
+            print(f"DEBUG: Number of cumulative points: {len(cumulative_afferents)}")
+            print(f"DEBUG: First few cumulative points: {list(cumulative_afferents.items())[:3]}")
+            
+            ax.plot(list(cumulative_afferents.keys()), list(cumulative_afferents.values()), 
+                   marker='o', color=color, label=f"{param_name_label}={pv}")
+
+        ax.set_xlim(0, 5000)
+        ax.set_title(f"{vf_tip} Afferent RF Size vs Force Varying {param_name_label}")
+        ax.legend()
+        
+        # Dynamically set y-limits before saving/showing
+        y_values = []
+        for line in ax.get_lines():
+            y_values.extend(line.get_ydata())
+        if y_values:
+            min_y = min(y_values)
+            max_y = max(y_values)
+            margin = (max_y - min_y) * 0.1 if max_y > min_y else 1
+            ax.set_ylim(min_y - margin, max_y + margin)
+
+        # Create directory if it doesn't exist
+        os.makedirs('Figure6', exist_ok=True)
+        plt.savefig(f"Figure6/{afferent_type}_{param_name}_{vf_tip}_comparison.png", bbox_inches='tight', dpi=300)
+        plt.show()
 
 def main():
     parser = argparse.ArgumentParser(description='Plot single unit model results.')
     parser.add_argument('afferent_type', choices=['SA', 'RA'], help='Type of afferent (SA or RA)')
     parser.add_argument('ramp', choices=['shallow', 'out', 'steep'], help='Type of ramp (shallow, out, or steep)')
     parser.add_argument('--scaling_factor', type=float, default=1.0, help='Scaling factor for stress values (default: 1.0)')
-    parser.add_argument('--plot_type', choices=['single', 'parameter', 'stress', 'receptive_field_size', 'firing_rate_only', 'parameter_vs_force', 'figure4'], default='single', 
+    parser.add_argument('--plot_type', choices=['single', 'parameter', 'stress', 'receptive_field_size', 'firing_rate_only', 'parameter_vs_force', 'figure4', 'figure6'], default='single', 
                       help='Plot type (single, parameter, or stress)')
     parser.add_argument('--param_name', choices=['tau1', 'tau2', 'tau3', 'tau4', 'k1', 'k2', 'k3', 'k4'], 
                        default='tau1', help='Parameter to vary in parameter comparison plot')
@@ -932,5 +1096,7 @@ def main():
         param_names = ['tau2','k2', 'tau1', 'k1']
         for a_type, param_name in zip(a_types, param_names):
             parameterVsForce(a_type, param_name)
+    elif args.plot_type == 'figure6':
+        populationParameterTuningOverTime(args.afferent_type, args.param_name)
 if __name__ == '__main__':
     main()
