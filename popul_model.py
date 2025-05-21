@@ -7,7 +7,6 @@ import pandas as pd
 import os
 import sys
 import time
-import setpyximport
 from lif_model import get_spikes
 from model_constants import (LifConstants, DURATION, MC_GROUPS)
 from gen_function import stress_to_current

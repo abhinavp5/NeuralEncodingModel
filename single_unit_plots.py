@@ -17,6 +17,53 @@ from scipy.signal import savgol_filter
 import argparse
 import os
 
+# Global figure parameters for consistent plotting
+plt.rcParams["font.family"] = "Arial"
+plt.rcParams["font.size"] = 20  # Very big font
+plt.rcParams["text.color"] = "#666666"  # Light gray text
+plt.rcParams["axes.labelcolor"] = "#666666"  # Light gray axis labels
+plt.rcParams["xtick.color"] = "#666666"  # Light gray tick labels
+plt.rcParams["ytick.color"] = "#666666"  # Light gray tick labels
+plt.rcParams["axes.edgecolor"] = "#666666"  # Light gray axis lines
+
+# Font sizes for different elements
+plt.rcParams["axes.labelsize"] = 28  # Size of axis labels
+plt.rcParams["axes.titlesize"] = 28  # Size of plot titles
+plt.rcParams["xtick.labelsize"] = 20  # Size of x-axis tick labels
+plt.rcParams["ytick.labelsize"] = 20  # Size of y-axis tick labels
+plt.rcParams["legend.fontsize"] = 20  # Size of legend text
+
+# Global figure layout parameters
+FIGURE_PARAMS = {
+    'figsize': (14, 6),
+    'left': 0.098,
+    'right': 0.95,
+    'top': 0.937,
+    'bottom': 0.097
+}
+
+# Global color scheme
+COLOR_MAP = {
+    3.61: '#3D2674',
+    4.08: '#6677FA',
+    4.17: '#FF9047',
+    4.31: '#FF9047',
+    4.56: '#92CA68',
+}
+
+# Function to style axes consistently
+def style_axes(ax):
+    """Apply consistent styling to axes"""
+    # Remove top and right spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    # Set remaining spines to light gray
+    ax.spines['left'].set_color('#666666')
+    ax.spines['bottom'].set_color('#666666')
+    # Set grid to light gray
+    ax.grid(True, linestyle='--', alpha=0.3, color='#666666')
+    return ax
+
 #Global Variables
 lmpars_init_dict = {}
 lmpars = Parameters()
@@ -29,8 +76,6 @@ lmpars.add('k2', value=.2088, vary=False, min=0) #b constant
 lmpars.add('k3', value=.07, vary=False, min=0) #c constant
 lmpars.add('k4', value=.0312, vary=False, min=0)
 lmpars_init_dict['t3f12v3final'] = lmpars
-plt.rcParams["font.family"] = "Arial"
-plt.rcParams["font.size"] = 20  # Very big font
 
 param_display_names = {
     'tau1': 'tauRI',
@@ -183,23 +228,15 @@ def run_same_plot(afferent_type, ramp, scaling_factor = .1, plot_style = "smooth
     vf_tip_sizes = [3.61, 4.08, 4.31, 4.56]
     LifConstants.set_resolution(1)
 
-    # Define figure parameters
-    fig_params = {
-        'figsize': (14, 6),
-        'left': 0.098,
-        'right': 0.95,
-        'top': 0.937,
-        'bottom': 0.097
-    }
-
     # Create figure with specified parameters
-    fig = plt.figure(figsize=fig_params['figsize'])
+    fig = plt.figure(figsize=FIGURE_PARAMS['figsize'])
     gs = fig.add_gridspec(1, 1,
-                         left=fig_params['left'],
-                         right=fig_params['right'],
-                         top=fig_params['top'],
-                         bottom=fig_params['bottom'])
+                         left=FIGURE_PARAMS['left'],
+                         right=FIGURE_PARAMS['right'],
+                         top=FIGURE_PARAMS['top'],
+                         bottom=FIGURE_PARAMS['bottom'])
     ax = fig.add_subplot(gs[0])
+    ax = style_axes(ax)  # Apply consistent styling
 
     for vf, color in zip(vf_tip_sizes, colors):
         try:
@@ -357,26 +394,18 @@ def plot_parameter_comparison(afferent_type, ramp, param_name='tau1', param_valu
     vf_tip_sizes = [4.56]
     LifConstants.set_resolution(1)
 
-    # Define consistent figure parameters
-    fig_params = {
-        'figsize': (14, 6),
-        'left': 0.098,    # left margin
-        'right': 0.95,    # right margin
-        'top': 0.937,     # top margin
-        'bottom': 0.097   # bottom margin
-    }
-
     figs = []
     axs = []
     # Create two separate figures, each matching the idealized stress plot dimensions
     for i in range(2):
-        fig = plt.figure(figsize=fig_params['figsize'])
+        fig = plt.figure(figsize=FIGURE_PARAMS['figsize'])
         gs = fig.add_gridspec(1, 1,
-                            left=fig_params['left'],
-                            right=fig_params['right'],
-                            top=fig_params['top'],
-                            bottom=fig_params['bottom'])
+                            left=FIGURE_PARAMS['left'],
+                            right=FIGURE_PARAMS['right'],
+                            top=FIGURE_PARAMS['top'],
+                            bottom=FIGURE_PARAMS['bottom'])
         ax = fig.add_subplot(gs[0])
+        ax = style_axes(ax)  # Apply consistent styling
         figs.append(fig)
         axs.append(ax)
 
@@ -464,13 +493,14 @@ def plot_parameter_comparison(afferent_type, ramp, param_name='tau1', param_valu
         # Additional plots for SA: tau2, tau3, k3
         if afferent_type == "SA":
             # tau2 (TauSI)
-            fig_tau2 = plt.figure(figsize=fig_params['figsize'])
+            fig_tau2 = plt.figure(figsize=FIGURE_PARAMS['figsize'])
             gs_tau2 = fig_tau2.add_gridspec(1, 1,
-                                          left=fig_params['left'],
-                                          right=fig_params['right'],
-                                          top=fig_params['top'],
-                                          bottom=fig_params['bottom'])
+                                          left=FIGURE_PARAMS['left'],
+                                          right=FIGURE_PARAMS['right'],
+                                          top=FIGURE_PARAMS['top'],
+                                          bottom=FIGURE_PARAMS['bottom'])
             ax_tau2 = fig_tau2.add_subplot(gs_tau2[0])
+            ax_tau2 = style_axes(ax_tau2)  # Apply consistent styling
             for value, color in zip(tau2_values, parameter_colors):
                 for param, val in base_params.items():
                     lmpars[param].value = val
@@ -485,7 +515,6 @@ def plot_parameter_comparison(afferent_type, ramp, param_name='tau1', param_valu
                     ax_tau2.plot(mod_spike_time, mod_fr_inst_interp * 1e3, color=color, label=f"τSI = {value}", marker='o', markersize=4, linestyle="none")
             ax_tau2.set_xlim(0, 5000)
             ax_tau2.set_ylim(bottom=0, top=top_y_lim)
-            # ax_tau2.set_xlabel("Time (ms)")  # Removing Time (ms) label
             ax_tau2.set_ylabel("IFF (Hz)")
             ax_tau2.set_title(f"IFF for Different τSI Values (SA)")
             ax_tau2.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15))
@@ -493,13 +522,14 @@ def plot_parameter_comparison(afferent_type, ramp, param_name='tau1', param_valu
             fig_tau2.savefig(f"Figure1/SA_{ramp}_tau2_comparison.png", bbox_inches='tight', dpi=300)
 
             # tau3 (TauUSI)
-            fig_tau3 = plt.figure(figsize=fig_params['figsize'])
+            fig_tau3 = plt.figure(figsize=FIGURE_PARAMS['figsize'])
             gs_tau3 = fig_tau3.add_gridspec(1, 1,
-                                          left=fig_params['left'],
-                                          right=fig_params['right'],
-                                          top=fig_params['top'],
-                                          bottom=fig_params['bottom'])
+                                          left=FIGURE_PARAMS['left'],
+                                          right=FIGURE_PARAMS['right'],
+                                          top=FIGURE_PARAMS['top'],
+                                          bottom=FIGURE_PARAMS['bottom'])
             ax_tau3 = fig_tau3.add_subplot(gs_tau3[0])
+            ax_tau3 = style_axes(ax_tau3)  # Apply consistent styling
             for value, color in zip(tau3_values, parameter_colors):
                 for param, val in base_params.items():
                     lmpars[param].value = val
@@ -514,7 +544,6 @@ def plot_parameter_comparison(afferent_type, ramp, param_name='tau1', param_valu
                     ax_tau3.plot(mod_spike_time, mod_fr_inst_interp * 1e3, color=color, label=f"τUSI = {value}", marker='o', markersize=4, linestyle="none")
             ax_tau3.set_xlim(0, 5000)
             ax_tau3.set_ylim(bottom=0, top=top_y_lim)
-            # ax_tau3.set_xlabel("Time (ms)")  # Removing Time (ms) label
             ax_tau3.set_ylabel("IFF (Hz)")
             ax_tau3.set_title(f"IFF for Different τUSI Values (SA)")
             ax_tau3.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15))
@@ -522,13 +551,14 @@ def plot_parameter_comparison(afferent_type, ramp, param_name='tau1', param_valu
             fig_tau3.savefig(f"Figure1/SA_{ramp}_tau3_comparison.png", bbox_inches='tight', dpi=300)
 
             # k3 (c)
-            fig_k3 = plt.figure(figsize=fig_params['figsize'])
+            fig_k3 = plt.figure(figsize=FIGURE_PARAMS['figsize'])
             gs_k3 = fig_k3.add_gridspec(1, 1,
-                                      left=fig_params['left'],
-                                      right=fig_params['right'],
-                                      top=fig_params['top'],
-                                      bottom=fig_params['bottom'])
+                                      left=FIGURE_PARAMS['left'],
+                                      right=FIGURE_PARAMS['right'],
+                                      top=FIGURE_PARAMS['top'],
+                                      bottom=FIGURE_PARAMS['bottom'])
             ax_k3 = fig_k3.add_subplot(gs_k3[0])
+            ax_k3 = style_axes(ax_k3)  # Apply consistent styling
             for value, color in zip(k3_values, parameter_colors):
                 for param, val in base_params.items():
                     lmpars[param].value = val
@@ -543,7 +573,6 @@ def plot_parameter_comparison(afferent_type, ramp, param_name='tau1', param_valu
                     ax_k3.plot(mod_spike_time, mod_fr_inst_interp * 1e3, color=color, label=f"c = {value}", marker='o', markersize=4, linestyle="none")
             ax_k3.set_xlim(0, 5000)
             ax_k3.set_ylim(bottom=0, top=top_y_lim)
-            # ax_k3.set_xlabel("Time (ms)")  # Removing Time (ms) label
             ax_k3.set_ylabel("IFF (Hz)")
             ax_k3.set_title(f"IFF for Different c Values (SA)")
             ax_k3.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15))
@@ -554,7 +583,6 @@ def plot_parameter_comparison(afferent_type, ramp, param_name='tau1', param_valu
     for i, ax in enumerate(axs):
         ax.set_xlim(0, 5000)  # For firing frequency plot
         ax.minorticks_on()
-        # ax.set_xlabel("Time (ms)")  # Removing Time (ms) label
         # Set different y-limits for each subplot
         ax.set_ylim(bottom=0, top=top_y_lim if i == 0 else bottom_y_lim)
 
@@ -586,15 +614,16 @@ def plot_stress_trace(ramp):
         stress = data[data.columns[1]].values
 
         # Create figure with exact spacing parameters
-        fig = plt.figure(figsize=(12, 5))  # Same size as parameter plots
+        fig = plt.figure(figsize=FIGURE_PARAMS['figsize'])
         
         # Create subplot with exact spacing parameters
         gs = fig.add_gridspec(1, 1, 
-                            left=0.098,    # left margin
-                            right=0.95,    # right margin
-                            top=0.937,     # top margin
-                            bottom=0.097)  # bottom margin
+                            left=FIGURE_PARAMS['left'],
+                            right=FIGURE_PARAMS['right'],
+                            top=FIGURE_PARAMS['top'],
+                            bottom=FIGURE_PARAMS['bottom'])
         ax = fig.add_subplot(gs[0])
+        ax = style_axes(ax)  # Apply consistent styling
         
         # Plot stress trace in black
         ax.plot(time, stress, color='black')
@@ -605,7 +634,6 @@ def plot_stress_trace(ramp):
         ax.minorticks_on()
         
         # Set labels
-        # ax.set_xlabel("Time (ms)")  # Removing Time (ms) label
         ax.set_ylabel("Stress (kPa)")
         ax.set_title(f"Stress Trace for {vf}mm von Frey")
         
@@ -688,7 +716,6 @@ def plot_firing_rate_only(afferent_type, ramp):
     plt.show()
 
 def forceAndRFSize(afferent_type, density = "Realistic",vf_tips = [3.61, 4.08, 4.31, 4.56]):
-        
         force_mappings = {
             3.61: 0.407,
             4.08: 1.202,
@@ -696,127 +723,57 @@ def forceAndRFSize(afferent_type, density = "Realistic",vf_tips = [3.61, 4.08, 4
             4.56: 2.041,
             4.89: 3.63
             }
-        # Define figure parameters
-        fig_params = {
-            'figsize': (14, 6),
-            'left': 0.098,
-            'right': 0.95,
-            'top': 0.937,
-            'bottom': 0.097
-        }
-        colors = {
-            3.61 :'#3D2674',
-            4.08:'#6677FA',
-            4.17 : '#FF9047',
-            4.31 : '#FF9047',
-            4.56 : '#92CA68',
-        }
 
         # Create figure with specified parameters
-        fig = plt.figure(figsize=fig_params['figsize'])
+        fig = plt.figure(figsize=FIGURE_PARAMS['figsize'])
         gs = fig.add_gridspec(1, 1,
-                            left=fig_params['left'],
-                            right=fig_params['right'],
-                            top=fig_params['top'],
-                            bottom=fig_params['bottom'])
+                            left=FIGURE_PARAMS['left'],
+                            right=FIGURE_PARAMS['right'],
+                            top=FIGURE_PARAMS['top'],
+                            bottom=FIGURE_PARAMS['bottom'])
         ax = gs.subplots()
-
-
+        ax = style_axes(ax)  # Apply consistent styling
 
         # Create a single figure
+        forces = []
+        rf_sizes = []
+        plot_colors = []
         for vf_tip in vf_tips:
             print(f"Processing VF Tip: {vf_tip}")
-
 
             # Initialize the VF model for each tip size
             vf_model = VF_Population_Model(vf_tip, afferent_type, scaling_factor=1.0, density=density)
             vf_model.radial_stress_vf_model(g =.2 if afferent_type =="SA" else .4 , h =.5 if afferent_type =="SA" else .1)
-            vf_model.run_single_unit_model_combined_graph(plot=False)
+            receptive_field_size = vf_model.calculate_receptive_field_size()
+            logging.info(f"Receptive Field Size: {receptive_field_size}")
 
-            # Get model results
-            model_results = vf_model.spatial_stress_vf_model()
-            first_spike_times = model_results["first_spike_time"]
-            spike_timings = model_results["spike_timings"]
-            print(f"First Spike Times: {first_spike_times}")
-            first_spike_times = []
+            forces.append(force_mappings[vf_tip])
+            rf_sizes.append(receptive_field_size)
+            plot_colors.append(COLOR_MAP[vf_tip])
 
+        # Plot the scatter points
+        ax.scatter(forces, rf_sizes, c=plot_colors, s=100, alpha=0.6)
 
-            spike_timings = model_results["spike_timings"]
-            for st in spike_timings:
-                if len(st)>1:
-                    # print(st[1])
-                    first_spike_times.append(st[1])
-                    print(f"Spike Timings length: {len(st[1:])}")
+        # Connect the points with lines
+        ax.plot(forces, rf_sizes, 'k--', alpha=0.3)
+
+        # Customize the plot with larger font sizes for labels
+        ax.set_xlabel('Force (g)', fontsize=24)  # Increased font size for Force label
+        ax.set_ylabel('Receptive Field Size (mm²)', fontsize=24)  # Increased font size for RF Size label
+        ax.set_title(f'{afferent_type} Afferent Receptive Field Size vs Force', fontsize=24)
+
+        # Save the plot
+        plt.savefig(f'figure4/{afferent_type}_rf_size_vs_force.png', dpi=300, bbox_inches='tight')
+        plt.show()
+
             
-
-
-            #soring based on zipped 
-            zipped = list(zip(first_spike_times, model_results["x_position"], model_results["y_position"]))
-            sorted_zipped = sorted(zipped, key = lambda x: x[0])
-            sorted_spike_times, sorted_x_positions, sorted_y_positions = zip(*sorted_zipped)
-            
-            # print (f"first_spike_times: {sorted_spike_times}")
-            # print(f"x_positions: {sorted_x_positions}")
-            # print(f"y_positions: {sorted_y_positions}")
-            # entire_iff = model_results["entire_iff"]
-            # for iff in entire_iff:
-            #     if len(iff) > 1:
-            #         print(f"IFF: {iff[1]}")
-            #         print(f"IFF: {iff[1]}")
-            # print(f"All Spikes: {model_results["cumulative_mod_spike_times"]}")
-            
-
-            # Dictionary to store the count of afferents recruited over time
-            time_and_afferents_triggered = {}
-
-            # Count the number of afferents recruited at each spike time
-            for spike_time in first_spike_times:
-                if spike_time in time_and_afferents_triggered.keys():
-                    time_and_afferents_triggered[spike_time] += 1
-                else:
-                    time_and_afferents_triggered[spike_time] = 1
-
-            # Sort the dictionary by spike times
-            spike_times_sorted = sorted(time_and_afferents_triggered.keys())
-            time_and_afferent_keys_sorted = {time_stamp: time_and_afferents_triggered[time_stamp] for time_stamp in spike_times_sorted}
-
-            # Logic for cumulative summation of afferents over time
-            cumulative_afferents = {}
-            cumulative_counter = 0
-            for time in time_and_afferent_keys_sorted.keys():
-                cumulative_counter += time_and_afferents_triggered[time]
-                cumulative_afferents[time] = cumulative_counter
-
-            # Plot cumulative or instantaneous data
-            if plot_cumulative:
-
-                plt.plot(cumulative_afferents.keys(), cumulative_afferents.values(), marker='o', color=color, label=label)
-            else:
-                plt.scatter(time_and_afferents_triggered.keys(), time_and_afferents_triggered.values(), marker='o', color=color, label=label)
-
-            vf_cumulative_data[vf_tip] = cumulative_afferents
-        # Add labels, legend, and grid
-        if not density:
-            plt.title(f"{density if density else ''} DensityCumulative Afferents Over Time" if plot_cumulative else "Instantaneous Afferents Over Time", fontsize=14, fontweight="bold")
-
-
-        plt.xlabel("Time (ms)", fontsize=12)
-        plt.ylabel("Number of Afferents Recruited", fontsize=12)
-        plt.grid(alpha=0.5)
-        plt.legend(title="VF Tip Sizes")
-        plt.tight_layout()
-        plt.title(f"Cumulation of {afferent_type} Afferents")
-        plt.savefig(f"vf_graphs/furthest_difference_before_firing/cumu_afferents_time/{density if density else ''}_{afferent_type}_cumulative_afferents.png", bbox_inches='tight')
-        # plt.show()
-        return vf_cumulative_data
-
 
 def main():
     parser = argparse.ArgumentParser(description='Plot single unit model results.')
     parser.add_argument('afferent_type', choices=['SA', 'RA'], help='Type of afferent (SA or RA)')
     parser.add_argument('ramp', choices=['shallow', 'out', 'steep'], help='Type of ramp (shallow, out, or steep)')
     parser.add_argument('--scaling_factor', type=float, default=1.0, help='Scaling factor for stress values (default: 1.0)')
-    parser.add_argument('--plot_type', choices=['single', 'parameter', 'stress'], default='single', 
+    parser.add_argument('--plot_type', choices=['single', 'parameter', 'stress', 'receptive_field_size'], default='single', 
                       help='Plot type (single, parameter, or stress)')
     parser.add_argument('--param_name', choices=['tau1', 'tau2', 'tau3', 'tau4', 'k1', 'k2', 'k3', 'k4'], 
                        default='tau1', help='Parameter to vary in parameter comparison plot')
@@ -845,6 +802,8 @@ def main():
         plot_stress_trace(args.ramp)
     elif args.plot_type == 'firing_rate_only':
         plot_firing_rate_only(args.afferent_type, args.ramp)
+    elif args.plot_type == 'receptive_field_size':
+        forceAndRFSize(args.afferent_type)
 
 if __name__ == '__main__':
     main()

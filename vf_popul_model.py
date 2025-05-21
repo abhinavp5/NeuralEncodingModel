@@ -1,14 +1,16 @@
 import numpy as np
 import pandas as pd
+import logging
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import re
-import logging
 import math
 from aim2_population_model_spatial_aff_parallel import get_mod_spike
 from model_constants import (MC_GROUPS, LifConstants)
 import os
 from lmfit import Parameters
+from popul_model import pop_model
 
 
 # Global Variables
@@ -177,7 +179,14 @@ class VF_Population_Model:
         self.h = h
 
         # Load radial stress data
-        radial_stress_file = f"data/P2/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr_{self.density.lower()}.csv"
+        if self.density == "Realistic":
+            if self.vf_tip_size == 4.56:
+                radial_stress_file = f"data/P3/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr_{self.density.lower()}.csv"
+            else:
+                radial_stress_file = f"data/P4/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr_{self.density.lower()}.csv"
+        else:
+            radial_stress_file = f"data/P2/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr_{self.density.lower()}.csv"
+        
         logging.info(f"Attempting to read file: {radial_stress_file}")
         
         try:
@@ -437,12 +446,10 @@ class VF_Population_Model:
             groups = MC_GROUPS
             mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress_values, g=self.g, h=self.h)
 
-            # If there is no response
-            if len(mod_spike_time) == 0:
-                break
-
-            if distance > radius:
-                radius = distance
+            # If there is a response, update the radius
+            if len(mod_spike_time) > 0:
+                if distance > radius:
+                    radius = distance
 
         receptive_field_size = radius**2 * np.pi
         return receptive_field_size
