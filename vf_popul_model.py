@@ -32,7 +32,7 @@ class VF_Population_Model:
     It uses spatial and radial stress data to simulate afferent firing responses.
     """
 
-    def __init__(self, vf_tip_size, aff_type, scaling_factor, density=None):
+    def __init__(self, vf_tip_size, aff_type, scaling_factor, density=None, params=None):
         """
         Initialize the VF Population Model.
 
@@ -41,11 +41,40 @@ class VF_Population_Model:
         - aff_type (str): The type of afferent ("SA" or "RA").
         - scaling_factor (float): The scaling factor applied to stress data.
         - density (str, optional): The density of afferents ("Low", "Med", "High", "Realistic").
+        - params (lmfit.Parameters, optional): The parameters for the model.
         """
         self.sf = scaling_factor
         self.vf_tip_size = vf_tip_size
         self.aff_type = aff_type
         self.density = density.lower().capitalize() if density else None
+        
+        # Set default parameters if none provided
+        if params is None:
+            self.params = Parameters()
+            if self.aff_type == "RA":
+                self.params.add('tau1', value=8, vary=False)
+                self.params.add('tau2', value=200, vary=False)
+                self.params.add('tau3', value=1, vary=False)
+                self.params.add('tau4', value=np.inf, vary=False)
+                self.params.add('k1', value=35, vary=False)
+                self.params.add('k2', value=0, vary=False)
+                self.params.add('k3', value=0.0, vary=False)
+                self.params.add('k4', value=0, vary=False)
+            else:  # SA afferent
+                self.params.add('tau1', value=8, vary=False)
+                self.params.add('tau2', value=200, vary=False)
+                self.params.add('tau3', value=1744.6, vary=False)
+                self.params.add('tau4', value=np.inf, vary=False)
+                self.params.add('k1', value=0.74, vary=False)
+                self.params.add('k2', value=1.0, vary=False)
+                self.params.add('k3', value=0.07, vary=False)
+                self.params.add('k4', value=0.0312, vary=False)
+        else:
+            self.params = params
+
+        print(f"[VF_Population_Model] Parameter set for {self.aff_type} (tip {self.vf_tip_size}):")
+        for name, par in self.params.items():
+            print(f"  {name}: {par.value}")
 
         # Instance variables for storing data
         self.results = None
@@ -111,7 +140,7 @@ class VF_Population_Model:
             stress = stress_data[stress_col] * self.sf
 
             # Compute spikes using model
-            lmpars = lmpars_init_dict['t3f12v3final']
+            lmpars = self.params
             if self.aff_type == "RA":
                 lmpars['tau1'].value = 8
                 lmpars['tau2'].value = 200
@@ -214,16 +243,7 @@ class VF_Population_Model:
                 }
 
                 # Compute spikes using model
-                lmpars = lmpars_init_dict['t3f12v3final']
-                if self.aff_type == "RA":
-                    lmpars['tau1'].value = 8
-                    lmpars['tau2'].value = 200
-                    lmpars['tau3'].value = 1
-                    lmpars['k1'].value = 35
-                    lmpars['k2'].value = 0
-                    lmpars['k3'].value = 0.0
-                    lmpars['k4'].value = 0
-
+                lmpars = self.params
                 groups = MC_GROUPS
                 mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, radial_time, scaled_stress, g=self.g, h=self.h)
 
@@ -340,9 +360,9 @@ class VF_Population_Model:
                 stress_values = np.zeros_like(stress_values)
 
             # Compute spikes using model
-            lmpars = lmpars_init_dict['t3f12v3final']
+            lmpars = self.params
             if self.aff_type == "RA":
-                lmpars['tau1'].value = 8
+                lmpars['tau1'].value = 2.5
                 lmpars['tau2'].value = 200
                 lmpars['tau3'].value = 1
                 lmpars['k1'].value = 35
@@ -433,16 +453,7 @@ class VF_Population_Model:
                 stress_values = np.zeros_like(stress_values)
 
             # Compute spikes using model
-            lmpars = lmpars_init_dict['t3f12v3final']
-            if self.aff_type == "RA":
-                lmpars['tau1'].value = 8
-                lmpars['tau2'].value = 200
-                lmpars['tau3'].value = 1
-                lmpars['k1'].value = 35
-                lmpars['k2'].value = 0
-                lmpars['k3'].value = 0.0
-                lmpars['k4'].value = 0
-
+            lmpars = self.params
             groups = MC_GROUPS
             mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress_values, g=self.g, h=self.h)
 

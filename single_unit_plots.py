@@ -44,11 +44,11 @@ FIGURE_PARAMS = {
 
 # Global color scheme
 COLOR_MAP = {
-    3.61: '#3D2674',
-    4.08: '#6677FA',
-    4.17: '#FF9047',
-    4.31: '#FF9047',
-    4.56: '#92CA68',
+    3.61: '#ffffcc',
+    4.08: '#a1dab4',
+    4.17: '#41b6c4',
+    4.31: '#2c7fb8',
+    4.56: '#253494',
 }
 
 # Function to style axes consistently
@@ -487,7 +487,7 @@ def plot_parameter_comparison(afferent_type, ramp, param_name='tau1', param_valu
                 else:
                     mod_fr_inst_interp = mod_fr_inst
                 axs[1].plot(mod_spike_time, mod_fr_inst_interp * 1e3, 
-                          color=color, label=f"{param_label} = {value}",
+                          color=color, label=f"{param_label}={value}",
                           marker='o', markersize=4, linestyle="none")
 
         # Additional plots for SA: tau2, tau3, k3
@@ -719,9 +719,9 @@ def forceAndRFSize(afferent_type, density = "Realistic",vf_tips = [3.61, 4.08, 4
         force_mappings = {
             3.61: 0.407,
             4.08: 1.202,
-            4.31: 1.479,
-            4.56: 2.041,
-            4.89: 3.63
+            4.17: 1.479,
+            4.31: 2.041,
+            4.56: 3.63,
             }
 
         # Create figure with specified parameters
@@ -768,12 +768,132 @@ def forceAndRFSize(afferent_type, density = "Realistic",vf_tips = [3.61, 4.08, 4
 
             
 
+def parameterVsForce(afferent_type, param_name, param_set=None, density="Realistic", vf_tips=[3.61, 4.08, 4.17, 4.31, 4.56]):
+    """
+    Plot receptive field size vs force for different parameter values.
+    
+    Parameters:
+    - afferent_type (str): Type of afferent ("SA" or "RA")
+    - param_name (str): Name of parameter to vary (e.g., "tau1", "k2")
+    - param_set (list): List of parameter values to test (optional)
+    - density (str): Density of afferents ("Low", "Med", "High", "Realistic")
+    - vf_tips (list): List of von Frey tip sizes to test
+    """
+    # Define default parameter values based on afferent type and parameter
+    default_param_sets = {
+        "SA": {
+            "tau1": [1, 8, 100],
+            "tau2": [100, 200, 500],
+            "k2": [1, 3, 16],
+        },
+        "RA": {
+            "tau1": [1.0, 2.5, 10],
+            "k1": [10,35,50]
+        }
+    }
+    
+    # Use provided param_set or default values
+    param_values = param_set if param_set is not None else default_param_sets.get(afferent_type, {}).get(param_name)
+    
+    if param_values is None:
+        logging.warning(f"No parameter values found for {param_name} and {afferent_type}")
+        return
+
+    # Force mappings for each VF tip size
+    force_mappings = {
+        3.61: 0.407,
+        4.08: 1.202,
+        4.17: 1.479,
+        4.31: 2.041,
+        4.56: 3.63,
+        }
+    # Colors for each parameter value
+    # parameter_colors = ['#000000', '#444444', '#888888', '#BBBBBB'] 
+    parameter_colors = ['#000000', '#666666', '#BBBBBB'] #only for 3 colors
+
+    # Create figure with specified parameters
+    fig = plt.figure(figsize=FIGURE_PARAMS['figsize'])
+    gs = fig.add_gridspec(1, 1,
+                        left=FIGURE_PARAMS['left'],
+                        right=FIGURE_PARAMS['right'],
+                        top=FIGURE_PARAMS['top'],
+                        bottom=FIGURE_PARAMS['bottom'])
+    ax = gs.subplots()
+    ax = style_axes(ax)  # Apply consistent styling
+
+    # For each parameter value, run the model and plot
+    for idx, param_value in enumerate(param_values):
+        forces = []
+        rf_sizes = []
+        vf_colors = []
+        # Create base parameters for this afferent type
+        base_params = Parameters()
+        if afferent_type == "SA":
+            base_params.add('tau1', value=8, vary=False)
+            base_params.add('tau2', value=200, vary=False)
+            base_params.add('tau3', value=1744.6, vary=False)
+            base_params.add('tau4', value=np.inf, vary=False)
+            base_params.add('k1', value=0.74, vary=False)
+            base_params.add('k2', value=1.0, vary=False)
+            base_params.add('k3', value=0.07, vary=False)
+            base_params.add('k4', value=0.0312, vary=False)
+        else:
+            base_params.add('tau1', value=2.5, vary=False)
+            base_params.add('tau2', value=200, vary=False)
+            base_params.add('tau3', value=1, vary=False)
+            base_params.add('tau4', value=np.inf, vary=False)
+            base_params.add('k1', value=35, vary=False)
+            base_params.add('k2', value=0, vary=False)
+            base_params.add('k3', value=0.0, vary=False)
+            base_params.add('k4', value=0, vary=False)
+            
+        # Set the varying parameter value
+        base_params[param_name].value = param_value
+
+
+
+        if param_name == "k2":
+            param_name_label = "b"
+        elif param_name == "k1":
+            param_name_label = "a"
+        elif param_name == "tau1":
+            param_name_label = "τRI"
+        elif param_name == "tau2":
+            param_name_label = "τSI"
+        
+        for vf_tip in vf_tips:
+            # Initialize the VF model with the configured parameters
+            vf_model = VF_Population_Model(vf_tip, afferent_type, scaling_factor=1.0, density=density, params=base_params)
+            vf_model.radial_stress_vf_model(g=.2 if afferent_type=="SA" else .4, h=.5 if afferent_type=="SA" else .1)
+            receptive_field_size = vf_model.calculate_receptive_field_size()
+            print(f"DEBUG: Receptive Field Size: {receptive_field_size} for vf_tip={vf_tip}, {param_name}={param_value}")
+            if receptive_field_size is not None:
+                forces.append(force_mappings[vf_tip])
+                rf_sizes.append(receptive_field_size)
+                vf_colors.append(COLOR_MAP[vf_tip])
+        # Plot each data point in the color of the vf tip
+        for f, r, c in zip(forces, rf_sizes, vf_colors):
+            ax.scatter(f, r, color=c, s=100, alpha=0.8, edgecolor='k', linewidth=1.2)
+        # Connect the points for this parameter value with a dark solid line
+        ax.plot(forces, rf_sizes, color=parameter_colors[idx % len(parameter_colors)], linestyle='-', alpha=1.0, linewidth=2.5, label=f"{param_name_label}={param_value}")
+
+    # Customize the plot
+    ax.set_xlabel('Force (g)', fontsize=24)
+    ax.set_ylabel('Receptive Field Size (mm²)', fontsize=24)
+    ax.set_title(f'{afferent_type} Afferent RF Size vs Force Varying {param_name_label}', fontsize=24)
+    ax.legend()
+    
+    # Save the plot
+    os.makedirs('figure4', exist_ok=True)
+    plt.savefig(f'figure4/{afferent_type}_rf_size_vs_force_param_{param_name}.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
 def main():
     parser = argparse.ArgumentParser(description='Plot single unit model results.')
     parser.add_argument('afferent_type', choices=['SA', 'RA'], help='Type of afferent (SA or RA)')
     parser.add_argument('ramp', choices=['shallow', 'out', 'steep'], help='Type of ramp (shallow, out, or steep)')
     parser.add_argument('--scaling_factor', type=float, default=1.0, help='Scaling factor for stress values (default: 1.0)')
-    parser.add_argument('--plot_type', choices=['single', 'parameter', 'stress', 'receptive_field_size'], default='single', 
+    parser.add_argument('--plot_type', choices=['single', 'parameter', 'stress', 'receptive_field_size', 'firing_rate_only', 'parameter_vs_force', 'figure4'], default='single', 
                       help='Plot type (single, parameter, or stress)')
     parser.add_argument('--param_name', choices=['tau1', 'tau2', 'tau3', 'tau4', 'k1', 'k2', 'k3', 'k4'], 
                        default='tau1', help='Parameter to vary in parameter comparison plot')
@@ -804,6 +924,13 @@ def main():
         plot_firing_rate_only(args.afferent_type, args.ramp)
     elif args.plot_type == 'receptive_field_size':
         forceAndRFSize(args.afferent_type)
+    elif args.plot_type == 'parameter_vs_force':
+        parameterVsForce(args.afferent_type, args.param_name)
 
+    elif args.plot_type == 'figure4':
+        a_types = [ 'SA', 'SA', 'RA', 'RA']
+        param_names = ['tau2','k2', 'tau1', 'k1']
+        for a_type, param_name in zip(a_types, param_names):
+            parameterVsForce(a_type, param_name)
 if __name__ == '__main__':
     main()
