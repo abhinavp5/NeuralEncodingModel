@@ -4,7 +4,25 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import re
 import logging
+import math
+from aim2_population_model_spatial_aff_parallel import get_mod_spike
+from model_constants import (MC_GROUPS, LifConstants)
+import os
+from lmfit import Parameters
 
+
+# Global Variables
+lmpars_init_dict = {}
+lmpars = Parameters()
+lmpars.add('tau1', value=8, vary=False) #tauRI(ms)
+lmpars.add('tau2', value=200, vary=False) #tauSI(ms)
+lmpars.add('tau3', value=1744.6, vary=False)#tauUSI(ms)
+lmpars.add('tau4', value=np.inf, vary=False)
+lmpars.add('k1', value=.74, vary=False, min=0) #a constant
+lmpars.add('k2', value=.2088, vary=False, min=0) #b constant
+lmpars.add('k3', value=.07, vary=False, min=0) #c constant
+lmpars.add('k4', value=.0312, vary=False, min=0)
+lmpars_init_dict['t3f12v3final'] = lmpars
 
 class VF_Population_Model:
     """
@@ -90,20 +108,54 @@ class VF_Population_Model:
 
             stress = stress_data[stress_col] * self.sf
 
-            # Compute spikes using model (placeholder function `get_mod_spike`)
-            mod_spike_time, mod_fr_inst = get_mod_spike(time, stress, g=self.g, h=self.h)
+            # Compute spikes using model
+            lmpars = lmpars_init_dict['t3f12v3final']
+            if self.aff_type == "RA":
+                lmpars['tau1'].value = 8
+                lmpars['tau2'].value = 200
+                lmpars['tau3'].value = 1
+                lmpars['k1'].value = 35
+                lmpars['k2'].value = 0
+                lmpars['k3'].value = 0.0
+                lmpars['k4'].value = 0
+
+            groups = MC_GROUPS
+            mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress, g=self.g, h=self.h)
 
             if len(mod_spike_time) == 0:
                 continue  # Skip if no spikes
 
-            mod_fr_inst_interp = np.interp(mod_spike_time, time, mod_fr_inst) if len(mod_fr_inst) > 1 else np.zeros_like(mod_spike_time)
-            peak_firing_freq = np.max(mod_fr_inst_interp)
+            if len(mod_spike_time) != len(mod_fr_inst):
+                if len(mod_fr_inst) > 1:
+                    mod_fr_inst_interp = np.interp(mod_spike_time, time, mod_fr_inst)
+                else:
+                    mod_fr_inst_interp = np.zeros_like(mod_spike_time)
+            else:
+                mod_fr_inst_interp = mod_fr_inst
 
+            features, _ = pop_model(mod_spike_time, mod_fr_inst_interp)
+
+            # Store results
             model_results["x_position"].append(row.iloc[0])
             model_results["y_position"].append(row.iloc[1])
             model_results["spike_timings"].append(mod_spike_time.tolist())
-            model_results["mean_firing_frequency"].append(np.mean(mod_fr_inst_interp))
-            model_results["peak_firing_frequency"].append(peak_firing_freq)
+            model_results["mean_firing_frequency"].append(features["Average Firing Rate"])
+            
+            if time_of_firing == "peak":
+                peak_fr = np.max(mod_fr_inst_interp)
+                peak_fr_idx = np.argmax(mod_fr_inst_interp)
+                peak_fr_time = mod_spike_time[peak_fr_idx] if peak_fr_idx < len(mod_spike_time) else None
+                model_results["peak_firing_frequency"].append(peak_fr)
+            else:
+                difference_array = time_of_firing - np.array(mod_spike_time)
+                positive_indices = np.where(difference_array > 0)[0]
+                if len(positive_indices) > 0:
+                    closest_spike_idx = positive_indices[np.argmin(difference_array[positive_indices])]
+                    temp_fr_inst_interp = mod_fr_inst_interp[closest_spike_idx]
+                else:
+                    temp_fr_inst_interp = 0
+                model_results["peak_firing_frequency"].append(temp_fr_inst_interp)
+
             model_results["first_spike_time"].append(mod_spike_time[0])
             model_results["last_spike_time"].append(mod_spike_time[-1])
             model_results["each_coord_stress"].append(stress.tolist())
@@ -121,19 +173,15 @@ class VF_Population_Model:
         - g (float): Model parameter for spike generation.
         - h (float): Model parameter for spike generation.
         """
-        if self.aff_type == "SA":
-            self.g = 0.2
-            self.h = 0.5
-        elif self.aff_type == "RA":
-            self.g = 0.4
-            self.h = 1.0
+        self.g = g
+        self.h = h
 
+        # Load radial stress data
         radial_stress_file = f"data/P2/{self.density}/{self.vf_tip_size}/{self.vf_tip_size}_radial_stress_corr_{self.density.lower()}.csv"
         logging.info(f"Attempting to read file: {radial_stress_file}")
         
         try:
             radial_stress = pd.read_csv(radial_stress_file)
-            # Check if 'Time (ms)' column exists, if not try 'Time'
             time_col = 'Time (ms)' if 'Time (ms)' in radial_stress.columns else 'Time'
             radial_time = radial_stress[time_col].to_numpy()
             
@@ -142,12 +190,12 @@ class VF_Population_Model:
 
             # Process each radial distance
             for col in radial_stress.columns:
-                if col == time_col:  # Skip the time column
+                if col == time_col:
                     continue
                     
                 matches = re.findall(r'\d\.\d{2}', col)
                 if not matches:
-                    continue  # Skip if distance format is incorrect
+                    continue
 
                 distance_from_center = float(matches[0])
                 scaled_stress = radial_stress[col] * self.sf
@@ -157,26 +205,48 @@ class VF_Population_Model:
                 }
 
                 # Compute spikes using model
-                mod_spike_time, mod_fr_inst = get_mod_spike(radial_time, scaled_stress, g=self.g, h=self.h)
+                lmpars = lmpars_init_dict['t3f12v3final']
+                if self.aff_type == "RA":
+                    lmpars['tau1'].value = 8
+                    lmpars['tau2'].value = 200
+                    lmpars['tau3'].value = 1
+                    lmpars['k1'].value = 35
+                    lmpars['k2'].value = 0
+                    lmpars['k3'].value = 0.0
+                    lmpars['k4'].value = 0
+
+                groups = MC_GROUPS
+                mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, radial_time, scaled_stress, g=self.g, h=self.h)
 
                 if len(mod_spike_time) == 0:
                     iff_data[distance_from_center] = None
-                    continue  # Skip if no spikes
+                    continue
 
-                mod_fr_inst_interp = np.interp(mod_spike_time, radial_time, mod_fr_inst) if len(mod_fr_inst) > 1 else np.zeros_like(mod_spike_time)
+                if len(mod_spike_time) != len(mod_fr_inst):
+                    if len(mod_fr_inst) > 1:
+                        mod_fr_inst_interp = np.interp(mod_spike_time, radial_time, mod_fr_inst)
+                    else:
+                        mod_fr_inst_interp = np.zeros_like(mod_spike_time)
+                else:
+                    mod_fr_inst_interp = mod_fr_inst
+
+                features, _ = pop_model(mod_spike_time, mod_fr_inst_interp)
 
                 iff_data[distance_from_center] = {
+                    'afferent_type': self.aff_type,
+                    'num_of_spikes': len(mod_spike_time),
+                    'mean_firing_frequency': features["Average Firing Rate"],
+                    'peak_firing_frequency': np.max(mod_fr_inst_interp),
+                    'first_spike_time': mod_spike_time[0] if len(mod_spike_time) > 0 else None,
+                    'last_spike_time': mod_spike_time[-1] if len(mod_spike_time) > 0 else None,
                     'Time': stress_data[distance_from_center]["Time"].tolist(),
                     'Stress': stress_data[distance_from_center]["Stress"].tolist(),
-                    'peak_firing_frequency': np.max(mod_fr_inst_interp),
                     'mod_spike_time': mod_spike_time.tolist(),
                     'entire_iff': mod_fr_inst_interp.tolist()
                 }
 
             self.radial_stress_data = stress_data
             self.radial_iff_data = iff_data
-            logging.info(f"Stored radial_stress_data with {len(stress_data)} entries")
-            logging.info(f"Keys in radial_stress_data: {list(stress_data.keys())}")
             
         except FileNotFoundError:
             logging.error(f"Could not find file: {radial_stress_file}")
@@ -187,17 +257,44 @@ class VF_Population_Model:
             self.radial_stress_data = None
             self.radial_iff_data = None
 
-    def get_model_results(self):
-        """Returns the spatial model results."""
-        return self.results
+    def plot_spatial_coords(self, plot=False):
+        """
+        Plots the firing frequencies on a grid, with circle size and opacity based on peak firing frequency.
+        """
+        colors = {'SA': '#31a354', 'RA': '#3182bd'}
+        plt.figure(figsize=(12, 8))
 
-    def get_radial_iff_data(self):
-        """Returns the radial stress and firing frequency data."""
-        return self.radial_iff_data
+        x_positions = self.results.get("x_position")
+        y_positions = self.results.get("y_position")
+        mean_iffs = self.results.get("mean_firing_frequency")
+        peak_iffs = self.results.get("peak_firing_frequency")
 
-    def get_SA_radius(self):
-        """Returns the SA afferent radius."""
-        return self.SA_radius
+        x_positions = [float(value) for value in x_positions]
+        y_positions = [float(value) for value in y_positions]
+        alphas = [float(value) / max(peak_iffs) if value != 0 else 0 for value in peak_iffs]
+
+        # Plot circles for each coordinate
+        for x_pos, y_pos, radius, alpha in zip(x_positions, y_positions, peak_iffs, alphas):
+            plt.gca().add_patch(
+                patches.Circle((x_pos, y_pos), radius*2, edgecolor='black', 
+                             facecolor=colors.get(self.aff_type), linewidth=1, alpha=0.5)
+            )
+
+        if plot:
+            plt.xlabel('Length (mm)')
+            plt.ylabel('Width (mm)')
+            plt.title(f"{self.density if self.density else ''} {self.vf_tip_size} VF {self.aff_type} firing at {self.time_of_firing} ms Stress Distribution")
+
+        plt.gca().set_aspect('equal', adjustable='datalim')
+        plt.xlim(4, 12)
+        plt.ylim(2, 7)
+        plt.xticks(range(4, 13), fontsize=32)
+        plt.yticks(range(2, 8), fontsize=32)
+        plt.gca().xaxis.set_minor_locator(plt.MultipleLocator(0.5))
+        plt.gca().yaxis.set_minor_locator(plt.MultipleLocator(0.5))
+
+        plt.savefig(f"vf_graphs/spatial_plots/{self.density if self.density else ''}{self.vf_tip_size}_{self.aff_type}_{self.time_of_firing}_constant_opacity.png")
+        plt.show()
 
     def run_single_unit_model_combined_graph(self, stress_threshold=0, plot=True):
         """
@@ -215,28 +312,44 @@ class VF_Population_Model:
         legend = False
         common_stress_max = 0
         common_iff_max = 0
+        SA_radius = 0
 
-        # Create figure and axis
-        fig, ax = plt.subplots(figsize=(12, 8))
+        if plot:
+            fig, axes = plt.subplots(2, 5, figsize=(20, 8))
+            fig.subplots_adjust(hspace=0.5, wspace=0.4)
+            axes = axes.flatten()
 
         # Process each radial distance
-        for distance, data in self.radial_stress_data.items():
+        for idx, (distance, data) in enumerate(self.radial_stress_data.items()):
+            if idx >= 10:  # Only plot up to 10 entries
+                break
+
             time = data["Time"]
             stress_values = data["Stress"]
 
-            # Skip if stress is below threshold
             if np.max(stress_values) < stress_threshold:
-                continue
+                stress_values = np.zeros_like(stress_values)
 
-            # Get firing data for this distance
-            if distance in self.radial_iff_data and self.radial_iff_data[distance] is not None:
-                firing_data = self.radial_iff_data[distance]
-                mod_spike_time = np.array(firing_data["mod_spike_time"])
-                mod_fr_inst = np.array(firing_data["entire_iff"])
-            else:
-                continue
+            # Compute spikes using model
+            lmpars = lmpars_init_dict['t3f12v3final']
+            if self.aff_type == "RA":
+                lmpars['tau1'].value = 8
+                lmpars['tau2'].value = 200
+                lmpars['tau3'].value = 1
+                lmpars['k1'].value = 35
+                lmpars['k2'].value = 0
+                lmpars['k3'].value = 0.0
+                lmpars['k4'].value = 0
 
-            # Interpolate firing rate if needed
+            groups = MC_GROUPS
+            mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress_values, g=self.g, h=self.h)
+
+            if len(mod_spike_time) == 0:
+                break
+
+            if distance > SA_radius:
+                SA_radius = distance
+
             if len(mod_spike_time) != len(mod_fr_inst):
                 if len(mod_fr_inst) > 1:
                     mod_fr_inst_interp = np.interp(mod_spike_time, time, mod_fr_inst)
@@ -245,23 +358,103 @@ class VF_Population_Model:
             else:
                 mod_fr_inst_interp = mod_fr_inst
 
-            # Update common limits for first iteration
             if not legend:
                 common_stress_max = np.max(stress_values) + 50
                 common_iff_max = np.max(mod_fr_inst_interp * 1e3) + 50
 
-            # Plot data
-            ax.plot(time, stress_values, '--', color='gray', alpha=0.5, label='Stress' if not legend else None)
-            ax.plot(mod_spike_time, mod_fr_inst_interp * 1e3, 'o-', label=f'Distance {distance:.2f} mm')
+            if plot:
+                ax = axes[idx]
+                ax2 = ax.twinx()
 
-        # Set plot properties
-        ax.set_xlabel('Time (ms)')
-        ax.set_ylabel('Firing Rate (Hz) / Stress (kPa)')
-        ax.set_title(f'Radial Stress and Firing Rate for {self.aff_type} Afferent')
-        ax.legend()
-        ax.grid(True)
+                # Plot IFF (Hz)
+                ax.plot(mod_spike_time, mod_fr_inst_interp * 1e3, label="IFF (Hz)", 
+                       marker='o', linestyle='none', color='blue')
+                ax.tick_params(axis='y', labelcolor='blue')
+                ax.set_ylim(0, 525)
+
+                # Plot Stress (kPa)
+                ax2.plot(time, stress_values, label="Stress (kPa)", color='red')
+                ax2.tick_params(axis='y', labelcolor='red')
+                ax2.set_ylim(0, 400)
+
+                # Title and labels
+                ax.set_title(f'Distance {distance:.2f} mm')
+                ax.set_xlabel('Time (ms)')
+                ax.set_xlim(0, max(time))
+
+                if not legend:
+                    ax.set_ylabel('Firing Rate (Hz)', color='blue')
+                    ax2.set_ylabel('Stress (kPa)', color='red')
+                    legend = True
 
         if plot:
-            plt.show()
+            # Hide unused subplots
+            for ax in axes[len(self.radial_stress_data):]:
+                ax.axis('off')
 
-        return fig, ax
+            # Save plot
+            os.makedirs("figure4", exist_ok=True)
+            plt.savefig(f"figure4/radial_plots_{self.vf_tip_size}_{self.density if self.density else ''}_tauRI_{lmpars['tau1'].value}_g_{self.g}_h_{self.h}_a_{lmpars['k1'].value}_b_{lmpars['k2'].value}_c_{lmpars['k3'].value}.png")
+
+        self.SA_radius = SA_radius
+
+
+    def calculate_receptive_field_size(self, stress_threshold=0):
+        """
+        Calculates the receptive field size by finding the maximum distance where there is a response.
+        
+        Parameters:
+        - stress_threshold (float): Minimum stress value to consider
+        
+        Returns:
+        - float: The receptive field size
+        """
+        if self.radial_stress_data is None:
+            logging.error("radial_stress_data is None. Please run radial_stress_vf_model first.")
+            return None
+
+        radius = 0
+
+        # Process each radial distance
+        for distance, data in self.radial_stress_data.items():
+            time = data["Time"]
+            stress_values = data["Stress"]
+
+            if np.max(stress_values) < stress_threshold:
+                stress_values = np.zeros_like(stress_values)
+
+            # Compute spikes using model
+            lmpars = lmpars_init_dict['t3f12v3final']
+            if self.aff_type == "RA":
+                lmpars['tau1'].value = 8
+                lmpars['tau2'].value = 200
+                lmpars['tau3'].value = 1
+                lmpars['k1'].value = 35
+                lmpars['k2'].value = 0
+                lmpars['k3'].value = 0.0
+                lmpars['k4'].value = 0
+
+            groups = MC_GROUPS
+            mod_spike_time, mod_fr_inst = get_mod_spike(lmpars, groups, time, stress_values, g=self.g, h=self.h)
+
+            # If there is no response
+            if len(mod_spike_time) == 0:
+                break
+
+            if distance > radius:
+                radius = distance
+
+        receptive_field_size = radius**2 * np.pi
+        return receptive_field_size
+
+    def get_model_results(self):
+        """Returns the spatial model results."""
+        return self.results
+
+    def get_radial_iff_data(self):
+        """Returns the radial stress and firing frequency data."""
+        return self.radial_iff_data
+
+    def get_SA_radius(self):
+        """Returns the SA afferent radius."""
+        return self.SA_radius

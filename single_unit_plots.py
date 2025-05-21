@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import logging
 from lmfit import minimize, fit_report, Parameters
 from aim2_population_model_spatial_aff_parallel import get_mod_spike
+from vf_popul_model import VF_Population_Model
 from model_constants import (MC_GROUPS, LifConstants)
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import savgol_filter
@@ -686,7 +687,129 @@ def plot_firing_rate_only(afferent_type, ramp):
     plt.tight_layout()
     plt.show()
 
-def plot_
+def forceAndRFSize(afferent_type, density = "Realistic",vf_tips = [3.61, 4.08, 4.31, 4.56]):
+        
+        force_mappings = {
+            3.61: 0.407,
+            4.08: 1.202,
+            4.31: 1.479,
+            4.56: 2.041,
+            4.89: 3.63
+            }
+        # Define figure parameters
+        fig_params = {
+            'figsize': (14, 6),
+            'left': 0.098,
+            'right': 0.95,
+            'top': 0.937,
+            'bottom': 0.097
+        }
+        colors = {
+            3.61 :'#3D2674',
+            4.08:'#6677FA',
+            4.17 : '#FF9047',
+            4.31 : '#FF9047',
+            4.56 : '#92CA68',
+        }
+
+        # Create figure with specified parameters
+        fig = plt.figure(figsize=fig_params['figsize'])
+        gs = fig.add_gridspec(1, 1,
+                            left=fig_params['left'],
+                            right=fig_params['right'],
+                            top=fig_params['top'],
+                            bottom=fig_params['bottom'])
+        ax = gs.subplots()
+
+
+
+        # Create a single figure
+        for vf_tip in vf_tips:
+            print(f"Processing VF Tip: {vf_tip}")
+
+
+            # Initialize the VF model for each tip size
+            vf_model = VF_Population_Model(vf_tip, afferent_type, scaling_factor=1.0, density=density)
+            vf_model.radial_stress_vf_model(g =.2 if afferent_type =="SA" else .4 , h =.5 if afferent_type =="SA" else .1)
+            vf_model.run_single_unit_model_combined_graph(plot=False)
+
+            # Get model results
+            model_results = vf_model.spatial_stress_vf_model()
+            first_spike_times = model_results["first_spike_time"]
+            spike_timings = model_results["spike_timings"]
+            print(f"First Spike Times: {first_spike_times}")
+            first_spike_times = []
+
+
+            spike_timings = model_results["spike_timings"]
+            for st in spike_timings:
+                if len(st)>1:
+                    # print(st[1])
+                    first_spike_times.append(st[1])
+                    print(f"Spike Timings length: {len(st[1:])}")
+            
+
+
+            #soring based on zipped 
+            zipped = list(zip(first_spike_times, model_results["x_position"], model_results["y_position"]))
+            sorted_zipped = sorted(zipped, key = lambda x: x[0])
+            sorted_spike_times, sorted_x_positions, sorted_y_positions = zip(*sorted_zipped)
+            
+            # print (f"first_spike_times: {sorted_spike_times}")
+            # print(f"x_positions: {sorted_x_positions}")
+            # print(f"y_positions: {sorted_y_positions}")
+            # entire_iff = model_results["entire_iff"]
+            # for iff in entire_iff:
+            #     if len(iff) > 1:
+            #         print(f"IFF: {iff[1]}")
+            #         print(f"IFF: {iff[1]}")
+            # print(f"All Spikes: {model_results["cumulative_mod_spike_times"]}")
+            
+
+            # Dictionary to store the count of afferents recruited over time
+            time_and_afferents_triggered = {}
+
+            # Count the number of afferents recruited at each spike time
+            for spike_time in first_spike_times:
+                if spike_time in time_and_afferents_triggered.keys():
+                    time_and_afferents_triggered[spike_time] += 1
+                else:
+                    time_and_afferents_triggered[spike_time] = 1
+
+            # Sort the dictionary by spike times
+            spike_times_sorted = sorted(time_and_afferents_triggered.keys())
+            time_and_afferent_keys_sorted = {time_stamp: time_and_afferents_triggered[time_stamp] for time_stamp in spike_times_sorted}
+
+            # Logic for cumulative summation of afferents over time
+            cumulative_afferents = {}
+            cumulative_counter = 0
+            for time in time_and_afferent_keys_sorted.keys():
+                cumulative_counter += time_and_afferents_triggered[time]
+                cumulative_afferents[time] = cumulative_counter
+
+            # Plot cumulative or instantaneous data
+            if plot_cumulative:
+
+                plt.plot(cumulative_afferents.keys(), cumulative_afferents.values(), marker='o', color=color, label=label)
+            else:
+                plt.scatter(time_and_afferents_triggered.keys(), time_and_afferents_triggered.values(), marker='o', color=color, label=label)
+
+            vf_cumulative_data[vf_tip] = cumulative_afferents
+        # Add labels, legend, and grid
+        if not density:
+            plt.title(f"{density if density else ''} DensityCumulative Afferents Over Time" if plot_cumulative else "Instantaneous Afferents Over Time", fontsize=14, fontweight="bold")
+
+
+        plt.xlabel("Time (ms)", fontsize=12)
+        plt.ylabel("Number of Afferents Recruited", fontsize=12)
+        plt.grid(alpha=0.5)
+        plt.legend(title="VF Tip Sizes")
+        plt.tight_layout()
+        plt.title(f"Cumulation of {afferent_type} Afferents")
+        plt.savefig(f"vf_graphs/furthest_difference_before_firing/cumu_afferents_time/{density if density else ''}_{afferent_type}_cumulative_afferents.png", bbox_inches='tight')
+        # plt.show()
+        return vf_cumulative_data
+
 
 def main():
     parser = argparse.ArgumentParser(description='Plot single unit model results.')
